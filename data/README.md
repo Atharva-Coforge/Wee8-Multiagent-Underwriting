@@ -7,13 +7,13 @@ Fictional Ohio personal-auto applications. Names, addresses, VINs and carriers a
 - `incomplete_application`: fails the required-field gate.
 - `messy_formats`: tests intake normalization.
 - `manifest.json` lists each file with its acceptable decisions and expected tier. LLM outcomes can vary, so check that the decision is in the list rather than equal to one value.
+- `template.json` is a blank application. Copy it, fill it in, and run that copy. It is not one of the traced cases.
 
 ## Shape of a raw application
 
 | Field | Notes |
 | --- | --- |
 | `applicant` | Name, `date_of_birth`, address, and `license` (`status`, `first_licensed_date`) |
-| `additional_drivers` | Other household drivers. Empty list if none |
 | `vehicle` | A single vehicle: `year`, `make`, `model`, use, mileage, and garaging zip |
 | `coverage_requested` | `liability_limits` as `BI per person/BI per accident/PD`, in thousands |
 | `prior_insurance` | Continuous years and `lapse_days` |
@@ -23,3 +23,5 @@ Fictional Ohio personal-auto applications. Names, addresses, VINs and carriers a
 In `driving_history`, an empty list means the applicant reported none. `null` means the history was not provided, so it is a data gap, not a clean record.
 
 Required by the gate: `applicant.full_name`, `applicant.date_of_birth`, `vehicle.year`, `vehicle.make`, `vehicle.model`, `coverage_requested.liability_limits`. A field counts as missing if its key is absent, `null`, or an empty string.
+
+Copy `template.json` to a new file under `applications/` before filling it in. Leave `template.json` blank. Each accident is `{ "date", "at_fault", "description", "bodily_injury", "amount_paid_usd" }`. Each violation is `{ "date", "type", "description" }`. Each other claim is `{ "date", "type", "at_fault", "amount_paid_usd" }`.
