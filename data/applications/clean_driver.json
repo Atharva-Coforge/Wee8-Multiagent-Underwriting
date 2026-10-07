@@ -1,0 +1,67 @@
+{
+  "application_id": "APP-2026-1001",
+  "submitted_at": "2026-09-22T14:05:00Z",
+  "channel": "online",
+  "applicant": {
+    "full_name": "Maria Elena Ortiz",
+    "date_of_birth": "1984-05-12",
+    "marital_status": "married",
+    "occupation": "Registered nurse",
+    "address": {
+      "street": "418 Linden Ave",
+      "city": "Columbus",
+      "state": "OH",
+      "zip": "43214"
+    },
+    "phone": "614-555-0142",
+    "email": "maria.ortiz@example.com",
+    "license": {
+      "state": "OH",
+      "status": "valid",
+      "first_licensed_date": "2000-06-20"
+    }
+  },
+  "additional_drivers": [],
+  "vehicle": {
+    "year": 2021,
+    "make": "Honda",
+    "model": "CR-V",
+    "trim": "EX",
+    "vin": "2HKRW2H54MH600417",
+    "primary_use": "commute",
+    "annual_mileage": 11000,
+    "garaging_zip": "43214",
+    "ownership": "financed",
+    "anti_theft": true,
+    "safety_features": ["automatic emergency braking", "lane keep assist", "blind spot monitoring"]
+  },
+  "coverage_requested": {
+    "liability_limits": "100/300/100",
+    "collision_deductible": 500,
+    "comprehensive_deductible": 500,
+    "uninsured_motorist": "100/300",
+    "medical_payments": 5000,
+    "rental_reimbursement": true,
+    "effective_date": "2026-10-15"
+  },
+  "prior_insurance": {
+    "currently_insured": true,
+    "carrier": "Buckeye Mutual",
+    "years_continuous": 12,
+    "policy_end_date": "2026-10-15",
+    "lapse_days": 0
+  },
+  "driving_history": {
+    "accidents": [],
+    "violations": [],
+    "other_claims": [
+      {
+        "date": "2019-04-02",
+        "type": "glass",
+        "at_fault": false,
+        "amount_paid_usd": 320
+      }
+    ]
+  },
+  "applicant_notes": "Switching carriers for a multi-policy discount with my homeowners."
+}
