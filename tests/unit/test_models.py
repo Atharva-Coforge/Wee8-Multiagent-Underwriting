@@ -8,10 +8,13 @@ from pydantic import ValidationError
 
 from underwriting.models import (
     DrivingHistoryRecord,
+    EnrichedCase,
     IntakeRecord,
+    LookupResult,
     PipelineResult,
     PriorInsuranceRecord,
     Recommendation,
+    RiskAssessment,
     VehicleRecord,
 )
 
@@ -126,6 +129,71 @@ def test_literals_reject_bad_values():
             decision="approve",
             reason="intake cannot approve",
         )
+
+
+def _intake() -> IntakeRecord:
+    return IntakeRecord(
+        case_id="clean_claim_mismatch",
+        raw_text="Priya N. Shah says she has a clean record.",
+        full_name="Priya N. Shah",
+        date_of_birth="1994-07-19",
+        vehicle_year=2018,
+        vehicle_make="Subaru",
+        vehicle_model="Outback",
+        coverage="100/300/100",
+        decision="proceed",
+        reason="required fields present",
+        applicant_claims="no accidents and no tickets",
+    )
+
+
+def _enriched() -> EnrichedCase:
+    return EnrichedCase(
+        intake=_intake(),
+        lookup=LookupResult(match_status="full_match", person_id="P-1003"),
+        claims_band="high",
+        violation_severity="high",
+        vehicle_risk_band="moderate",
+        discrepancy_flags=["applicant claims no accidents or tickets; driving history has both"],
+        summary="Clean-record claim does not match driving history.",
+    )
+
+
+def test_enriched_case_carries_discrepancy_flags_and_verified_rows():
+    case = _enriched()
+
+    assert case.discrepancy_flags == [
+        "applicant claims no accidents or tickets; driving history has both"
+    ]
+    assert case.verified is True
+    assert "territory_factor" not in EnrichedCase.model_fields
+    assert "unverified" not in EnrichedCase.model_fields
+
+    payload = case.model_dump()
+    payload["verified"] = False
+    with pytest.raises(ValidationError):
+        EnrichedCase.model_validate(payload)
+
+
+def test_recommendation_cannot_reject():
+    assessment = RiskAssessment(enriched=_enriched(), score=72, tier="high", factors=[])
+
+    with pytest.raises(ValidationError):
+        Recommendation(
+            assessment=assessment,
+            decision="reject",
+            rationale="reject is an intake outcome",
+        )
+
+    referred = Recommendation(
+        assessment=assessment,
+        decision="refer",
+        rationale="unresolved discrepancy flag",
+        override=True,
+        model_decision="approve",
+    )
+    assert referred.decision == "refer"
+    assert referred.model_decision == "approve"
 
 
 def test_escalated_and_rejected_results_need_no_recommendation():

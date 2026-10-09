@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 Band = Literal["low", "moderate", "high", "severe"]
 Decision = Literal["approve", "deny", "refer", "reject"]
+RecommendationDecision = Literal["approve", "deny", "refer"]
 PipelineStatus = Literal["completed", "rejected", "escalated"]
 IntakeDecision = Literal["proceed", "reject", "escalate"]
 MatchStatus = Literal["full_match", "dob_mismatch", "not_found"]
@@ -107,17 +108,17 @@ class LookupResult(BaseModel):
 
 
 class EnrichedCase(BaseModel):
-    """Intake plus lookup, with unverified bands inferred from the records."""
+    """Intake plus lookup. Database rows are verified."""
 
     intake: IntakeRecord
     lookup: LookupResult
     claims_band: Band
     violation_severity: Band
     vehicle_risk_band: Band
-    territory_factor: Band
+    discrepancy_flags: list[str] = Field(default_factory=list)
     data_gaps: list[str] = Field(default_factory=list)
     summary: str
-    unverified: Literal[True] = True
+    verified: Literal[True] = True
 
 
 class RiskFactor(BaseModel):
@@ -134,12 +135,14 @@ class RiskAssessment(BaseModel):
 
 
 class Recommendation(BaseModel):
+    """approve, deny, or refer. reject is an intake outcome, not a recommendation."""
+
     assessment: RiskAssessment
-    decision: Decision
+    decision: RecommendationDecision
     rationale: str
     conditions: list[str] = Field(default_factory=list)
     override: bool = False
-    model_decision: Decision | None = None
+    model_decision: RecommendationDecision | None = None
 
 
 class TokenUsage(BaseModel):
