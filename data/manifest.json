@@ -55,10 +55,11 @@
     },
     {
       "file": "applications/incomplete.txt",
-      "scenario": "Paragraph is missing the date of birth or the vehicle model. The applicant may say they will call the missing fact in.",
-      "exercises": ["intake code floor", "cannot proceed"],
-      "expected_status": "escalated",
-      "acceptable_decisions": ["refer"],
+      "scenario": "Date of birth is missing. The applicant says they will call it in. Full name is present, so intake rejects the case.",
+      "exercises": ["intake code floor", "reject"],
+      "expected_status": "rejected",
+      "acceptable_decisions": ["reject"],
+      "rejection_reason": "required information date of birth is missing",
       "traced_end_to_end": false
     },
     {

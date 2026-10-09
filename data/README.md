@@ -15,7 +15,11 @@ Intake must find all of these in the paragraph before enrichment runs:
 - vehicle model
 - coverage
 
-If any of them is missing, intake does not send the case to enrichment. It rejects the case and names the missing field, for example: "required information date of birth is missing." Occupation is collected when it is present. A missing occupation does not reject the case.
+If full name or date of birth is missing, intake rejects the case. Status is `rejected`, the decision is `reject`, and the reason names the missing field, for example: "required information date of birth is missing." A promise to call the missing fact in does not change this. If an identity field and a vehicle or coverage field are both missing, the case is still rejected.
+
+If full name and date of birth are present, and vehicle year, vehicle make, vehicle model, or coverage is missing, intake escalates the case. Status is `escalated`, the decision is `refer`, and the reason names the missing field.
+
+Either stop ends the chain, so enrichment does not run. Occupation is collected when it is present. A missing occupation does not reject or escalate the case.
 
 `databases/` holds three JSON files. Every record has `person_id`, `full_name`, and `date_of_birth`. A lookup matches the normalized full name and date of birth from intake.
 
@@ -52,6 +56,6 @@ Each file is `{ "records": [ ... ] }`. Every record has `person_id`, `full_name`
 | `clean_claim_mismatch.txt` | Priya N. Shah, 1994-07-19, `P-1003` | Full match. Text says no accidents and no tickets. Driving history has both. |
 | `unknown_person.txt` | Samir Cole is in no file | Escalate, insufficient information. |
 | `dob_mismatch.txt` | Name Jordan A. Washington is `P-1004`, born 1988-03-14. The text says March 14, 1990. | Escalate, possible identity mismatch. |
-| `incomplete.txt` | Kevin Osei is in no file | Intake rejects the case. Date of birth is missing, so enrichment never runs. |
+| `incomplete.txt` | Kevin Osei is in no file | Intake rejects the case. Date of birth is missing, so enrichment never runs. Status is `rejected` and the decision is `reject`. |
 | `messy_formats.txt` | Alex M. Rivera, 1991-03-22, `P-1005` | Full match after normalizing `RIVERA, ALEX M.` and `03/22/91`. |
 | `timeout_case.txt` | Denise Carol Whitfield, 1977-08-03, `P-1006` | Full match. One minor speeding violation. Used only for the timeout path. |

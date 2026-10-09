@@ -39,9 +39,15 @@ Lookups match normalized full name plus date of birth. The file name is never th
 
 The model converts the paragraph to JSON. Invalid JSON gets one repair call that includes the validation error. If the repair is still invalid, the chain stops with status `escalated`, decision `refer`, and a reason that names the parse failure.
 
-The model also chooses `proceed`, `reject`, or `escalate` and gives a reason. Missing date of birth when the applicant says they will call it in is `escalate`, not `reject`.
+The model also chooses `proceed`, `reject`, or `escalate` and gives a reason.
 
-Required fields are full name, date of birth, vehicle year, make, model, and coverage. After the model returns, code checks those fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. When code overrides the model, the span records the override.
+Required fields are full name, date of birth, vehicle year, make, model, and coverage. Occupation is optional. After the model returns, code checks the six required fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. When code overrides the model, the span records the override.
+
+A missing full name or date of birth is `reject`. Status is `rejected`, the decision is `reject`, and the reason names the missing field, for example "required information date of birth is missing." Saying the fact will be called in later does not change this. If an identity field and a vehicle or coverage field are both missing, the case is still `reject`.
+
+A missing vehicle year, make, model, or coverage, when full name and date of birth are present, is `escalate`. Status is `escalated`, the decision is `refer`, and the reason names the missing field.
+
+Either stop ends the chain. Enrichment does not run.
 
 ## Enrichment
 
@@ -96,6 +102,7 @@ Scenarios to cover across the tests, with only the first three written out as en
 - Mismatch: claims a clean record, database has accidents, reaches a decision, discrepancy forces refer
 - Not found in the databases, escalate
 - Name match with the wrong date of birth, escalate
-- Incomplete text missing date of birth or vehicle model, cannot proceed
+- Missing full name or date of birth, reject. `incomplete.txt` is missing the date of birth
+- Missing vehicle year, make, model, or coverage while name and date of birth are present, escalate
 - Messy formatting that intake can still normalize
 - Timeout case, used by the retry test and `--inject-timeout`
