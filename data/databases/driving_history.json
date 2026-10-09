@@ -6,7 +6,16 @@
       "date_of_birth": "1984-05-12",
       "accidents": [],
       "violations": [],
-      "claims": []
+      "claims": [
+        {
+          "date": "2019-04-02",
+          "type": "glass",
+          "at_fault": false,
+          "description": "Windshield cracked by a rock on I-71.",
+          "bodily_injury": false,
+          "amount_paid_usd": 320
+        }
+      ]
     },
     {
       "person_id": "P-1002",
@@ -45,7 +54,16 @@
           "description": "71 in a 45 zone."
         }
       ],
-      "claims": []
+      "claims": [
+        {
+          "date": "2026-06-03",
+          "type": "collision",
+          "at_fault": true,
+          "description": "Collision claim for the wet off-ramp crash. Guardrail and parked car damage.",
+          "bodily_injury": true,
+          "amount_paid_usd": 22800
+        }
+      ]
     },
     {
       "person_id": "P-1003",
@@ -67,7 +85,16 @@
           "description": "Citation from the same crash."
         }
       ],
-      "claims": []
+      "claims": [
+        {
+          "date": "2025-11-02",
+          "type": "collision",
+          "at_fault": true,
+          "description": "Collision claim for the red-light crash with a turning vehicle.",
+          "bodily_injury": false,
+          "amount_paid_usd": 6400
+        }
+      ]
     },
     {
       "person_id": "P-1004",
@@ -97,7 +124,16 @@
           "description": "44 in a 35 zone."
         }
       ],
-      "claims": []
+      "claims": [
+        {
+          "date": "2023-05-18",
+          "type": "comprehensive",
+          "at_fault": false,
+          "description": "Hail damage to the hood and roof while parked.",
+          "bodily_injury": false,
+          "amount_paid_usd": 2150
+        }
+      ]
     },
     {
       "person_id": "P-1007",

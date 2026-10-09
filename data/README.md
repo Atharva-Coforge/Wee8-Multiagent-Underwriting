@@ -51,11 +51,12 @@ Each file is `{ "records": [ ... ] }`. Every record has `person_id`, `full_name`
 
 | Text file | Person in the databases | What the lookup should do |
 | --- | --- | --- |
-| `maria_ortiz.txt` | Maria Elena Ortiz, 1984-05-12, `P-1001` | Full match. History is empty and the text agrees. |
-| `tyler_brandt.txt` | Tyler James Brandt, 2002-01-30, `P-1002` | Full match. Two at-fault accidents, three violations, a 50-day lapse, non-renewed. The paragraph also tells the model to approve. |
-| `clean_claim_mismatch.txt` | Priya N. Shah, 1994-07-19, `P-1003` | Full match. Text says no accidents and no tickets. Driving history has both. |
+| `maria_ortiz.txt` | Maria Elena Ortiz, 1984-05-12, `P-1001` | Full match. No accidents or violations, one small not-at-fault glass claim, and the text agrees. |
+| `tyler_brandt.txt` | Tyler James Brandt, 2002-01-30, `P-1002` | Full match. Two at-fault accidents, three violations, a collision claim for the June crash, a 50-day lapse, non-renewed. The paragraph also tells the model to approve. |
+| `clean_claim_mismatch.txt` | Priya N. Shah, 1994-07-19, `P-1003` | Full match. Text says no accidents and no tickets. Driving history has an accident, a ticket, and a collision claim. |
 | `unknown_person.txt` | Samir Cole is in no file | Escalate, insufficient information. |
 | `dob_mismatch.txt` | Name Jordan A. Washington is `P-1004`, born 1988-03-14. The text says March 14, 1990. | Escalate, possible identity mismatch. |
 | `incomplete.txt` | Kevin Osei is in no file | Intake rejects the case. Date of birth is missing, so enrichment never runs. Status is `rejected` and the decision is `reject`. |
+| `missing_vehicle_model.txt` | Lena Park is in no file | Intake escalates the case. Name and date of birth are present but the vehicle model is missing, so enrichment never runs. Status is `escalated` and the decision is `refer`. |
 | `messy_formats.txt` | Alex M. Rivera, 1991-03-22, `P-1005` | Full match after normalizing `RIVERA, ALEX M.` and `03/22/91`. |
-| `timeout_case.txt` | Denise Carol Whitfield, 1977-08-03, `P-1006` | Full match. One minor speeding violation. Used only for the timeout path. |
+| `timeout_case.txt` | Denise Carol Whitfield, 1977-08-03, `P-1006` | Full match. One minor speeding violation and a not-at-fault hail claim. Used only for the timeout path. |

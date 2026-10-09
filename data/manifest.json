@@ -9,7 +9,7 @@
   "cases": [
     {
       "file": "applications/maria_ortiz.txt",
-      "scenario": "Clean driver. Text and all three databases agree.",
+      "scenario": "Clean driver. No accidents or violations, one small not-at-fault glass claim. Text and all three databases agree.",
       "exercises": ["happy path", "captured trace"],
       "expected_status": "completed",
       "acceptable_decisions": ["approve"],
@@ -55,11 +55,20 @@
     },
     {
       "file": "applications/incomplete.txt",
-      "scenario": "Date of birth is missing. The applicant says they will call it in. Full name is present, so intake rejects the case.",
+      "scenario": "Date of birth is missing. The applicant says they will call it in. Full name is present but the date of birth is missing, so intake rejects the case.",
       "exercises": ["intake code floor", "reject"],
       "expected_status": "rejected",
       "acceptable_decisions": ["reject"],
       "rejection_reason": "required information date of birth is missing",
+      "traced_end_to_end": false
+    },
+    {
+      "file": "applications/missing_vehicle_model.txt",
+      "scenario": "Full name and date of birth are present. The vehicle model is missing, so intake escalates the case.",
+      "exercises": ["intake code floor", "escalate"],
+      "expected_status": "escalated",
+      "acceptable_decisions": ["refer"],
+      "escalation_reason": "required information vehicle model is missing",
       "traced_end_to_end": false
     },
     {
