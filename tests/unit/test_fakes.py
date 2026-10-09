@@ -1,13 +1,8 @@
 """Scripted LLM adapter used in place of Ollama."""
 
 import json
-import sys
-from pathlib import Path
 
 import pytest
-
-# Pytest's importlib mode does not put the repository root on sys.path.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tests.fakes import FakeLLMAdapter
 from underwriting.llm_adapter import LLMAdapter, LLMResponse, LLMTimeoutError
