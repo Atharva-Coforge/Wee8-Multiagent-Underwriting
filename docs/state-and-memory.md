@@ -2,34 +2,100 @@
 
 ## Design decision: prompt chaining with message passing
 
-The underwriting pipeline is a fixed sequence. Every application goes through the same four steps, in the same order:
+The pipeline is a fixed sequence: intake, enrichment, risk scoring, recommendation (approve, deny, or refer). That order is prompt chaining. The path is not chosen at runtime, and LangGraph and LangSmith stay out.
 
-1. Intake
-2. Enrichment
-3. Risk scoring
-4. Recommendation (approve, deny, or refer to a human underwriter)
+Data moves by message passing. Each agent returns the prior message nested inside its own result. There is no shared case store.
 
-That fixed order is prompt chaining. Nothing in the pipeline chooses a different route, loops, or runs steps in parallel. Because the steps are already decided, the workflow does not need a graph framework or a hosted tracing product. LangGraph and LangSmith stay out of this project. The chain, the handoffs, and the traces are plain Python.
+The model sees only the slice that step needs. A span logs a short summary of input and output, not the full nested object, so traces stay readable and token use does not grow because earlier messages were pasted back in.
 
-Data moves by message passing. Each agent is a function. The value it returns is the argument the next agent receives. Intake's output is enrichment's input, enrichment's output is risk scoring's input, and risk scoring's output is the recommendation agent's input. There is no shared case record that every agent reads and updates. Each function returns the prior message nested inside the new one.
+Real calls use local Ollama, model `qwen3.5:9b` (`OLLAMA_HOST`, `OLLAMA_MODEL`). Tests use a fake adapter and do not start Ollama.
 
-Real calls use local Ollama, model `qwen3.5:9b`. Tests use a fake adapter and do not need Ollama.
+This is not the layout in `HTMLS/v2.html`. That sketch uses one flat case envelope and more than one model provider. This pipeline uses nested messages, one local model, and plain Python.
 
-## Contracts
+## Inputs
 
-- `intake_agent(raw_application, *, llm) -> IntakeRecord`. Reads the raw personal-auto application. Returns a case id, the raw application, normalized applicant, vehicle, and coverage, `missing_fields`, and intake notes.
-- `enrichment_agent(intake, *, llm) -> EnrichedCase`. Reads an `IntakeRecord`. Returns that record plus inferred claims band, violation severity, vehicle risk band, territory factor, `data_gaps`, and notes. No dataset or data vendor was provided, so every supplemental fact is inferred and marked unverified. A missing history (`null`) is a data gap, not a clean record. An empty list means the applicant reported none.
-- `risk_scoring_agent(enriched, *, llm) -> RiskAssessment`. Reads an `EnrichedCase`. Returns that case plus a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and the factors behind the score. Large `data_gaps` push the score up and the tier toward refer, rather than a confident low score.
-- `recommendation_agent(assessment, *, llm) -> Recommendation`. Reads a `RiskAssessment`. Returns that assessment plus `approve`, `deny`, or `refer`, a rationale, and any conditions.
+Each applicant is a plain-text file in `data/applications/`, named after the person (`maria_ortiz.txt`). The paragraph contains full name, date of birth, the car to insure (year, make, model), occupation, and the coverage type and limits. The wording may be messy. Applicant text is data, not instructions.
 
-## Required-field gate
+Three JSON databases live in `data/databases/`. Every record has `person_id`, `full_name`, and `date_of_birth`.
 
-Required fields are `applicant.full_name`, `applicant.date_of_birth`, `vehicle.year`, `vehicle.make`, `vehicle.model`, and `coverage_requested.liability_limits`. A field is missing if it is absent, `null`, or an empty string. If any are missing, the chain stops after intake and returns status `referred_incomplete`. It does not call the later agents.
+| File | Contents |
+| --- | --- |
+| `driving_history.json` | Accidents, violations, claims |
+| `vehicles_and_drivers.json` | Vehicles currently owned, and whether they are insured |
+| `prior_insurance.json` | Past policies, lapses, cancellations, non-renewals |
 
-## Timeout
+Lookups match normalized full name plus date of birth. The file name is never the key.
 
-Only risk scoring retries. A timeout is tried three times total. Each attempt is its own span. If all three time out, the result is status `escalated`, decision `refer`, and a rationale that names the timeout. The recommendation agent is not called. A timeout does not also run a JSON repair call.
+## Reads and produces
 
-## JSON repair
+| Agent | Reads | Produces |
+| --- | --- | --- |
+| Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
+| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: the intake record, claims band, violation severity, vehicle risk band, territory factor, discrepancy flags, `data_gaps`, and a summary. Or an escalation |
+| Risk scoring | Bands, discrepancies, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
+| Recommendation | Score, tier, discrepancies, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions |
 
-Invalid JSON is handled once per agent call: parse, and on failure send one repair prompt that includes the validation error. If the repair is still invalid, stop the chain with status `escalated`, decision `refer`, and a rationale that names the agent and the parse failure.
+## Intake
+
+The model converts the paragraph to JSON. Invalid JSON gets one repair call that includes the validation error. If the repair is still invalid, the chain stops with status `escalated`, decision `refer`, and a reason that names the parse failure.
+
+The model also chooses `proceed`, `reject`, or `escalate` and gives a reason. Missing date of birth when the applicant says they will call it in is `escalate`, not `reject`.
+
+Required fields are full name, date of birth, vehicle year, make, model, and coverage. After the model returns, code checks those fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. When code overrides the model, the span records the override.
+
+## Enrichment
+
+`src/underwriting/databases.py` does the lookups. The model does not search the files.
+
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and flags discrepancies (a "clean record" claim when the history has accidents). Supplemental facts are unverified inferences from those records.
+- Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
+- No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
+- Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.
+
+An escalation does not call the later agents.
+
+## Risk scoring and recommendation
+
+Discrepancies and data gaps push the score up. They do not produce a confident low score.
+
+Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy becomes `refer`. An override is recorded on the span.
+
+Only risk scoring retries, and only on timeout. Three attempts, with a short backoff between them. Each attempt is its own span. If all three time out, status is `escalated`, decision is `refer`, and the reason names the timeout. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
+
+The client timeout defaults to 30 seconds, not 120. A warm local 9B call that is still running after 30 seconds is stuck. Three attempts at 120 seconds would hide that and would make the worst-case latency look like a batch job before the write-up measured it.
+
+## Tracing and cost
+
+One JSONL file per case: `traces/<case_id>.jsonl`. Each span has agent, attempt, start time, duration, prompt tokens, completion tokens, status, and any override or error. The runner prints a per-case summary table.
+
+`case_id` is `person_id` after a name-and-DOB match. Before a match, it is the text-file stem.
+
+Local Ollama charges $0 per token. The cost write-up still prices the measured token counts at one or two hosted models. Those rates stay placeholders until they are checked against the current pricing pages. Latency includes the worst case of three risk-scoring attempts plus backoff. The conclusion says whether that latency fits a real-time quote or an overnight batch.
+
+## Build plan
+
+Rubric points are in brackets. Steps without a number support the pointed steps.
+
+1. **Design doc and reads/produces table [8].** This file is that deliverable.
+2. **Data.** Add the text files under `data/applications/`, the three databases under `data/databases/`, and point `data/manifest.json` at them. Remove the old JSON applications from the active set once the text files exist.
+3. **Models.** Drop the `Raw*` application models. `IntakeRecord` keeps `raw_text` plus the normalized fields and the intake decision.
+4. **Lookups.** Implement `src/underwriting/databases.py` and tests for a full match, a DOB mismatch, a missing driving-history row, and a gap in only one database.
+5. **Fake adapter.** `tests/fakes.py` records calls, returns canned JSON, can return invalid JSON once, and can raise `LLMTimeoutError` a chosen number of times.
+6. **Agents, one at a time [15].** Prompt and function, then the unit test, before the next agent. Each test uses a hardcoded input and the fake, checks the parsed model, checks that the prior message is still nested, and checks that the prompt received only that agent's slice. The prompt-injection text must not become an approve. All four unit tests pass before the chain calls an agent.
+7. **Trace, then intake to enrichment [15].** Implement `tracing.py` (`record`, JSONL, short summaries). `run_pipeline` calls intake, applies the code floor, then enrichment. `tests/integration/test_handoff.py` checks the handoff and the two spans.
+8. **Risk, recommendation, three real runs [15 + 8].** Add risk scoring, then recommendation, including the severe-tier and discrepancy guardrails. `tests/integration/test_full_chain.py` runs the fake-backed chain with no Ollama process. `scripts/run_cases.py` then runs the three cases that reach a final decision (clean, high-risk, mismatch) and writes their traces.
+9. **Cost and latency [12].** Fill `docs/cost-and-latency.md` from those traces. State the model, the host, and the machine. State that local Ollama is $0 per token, price the same counts at the hosted placeholders, include worst-case retry latency, and judge real-time versus overnight batch.
+10. **Retry, then escalate [17].** Lower the adapter timeout to 30 seconds. Retry risk scoring three times with a short backoff. `scripts/run_cases.py --inject-timeout` forces that path. `tests/integration/test_timeout_escalation.py` covers two timeouts then a success, and three timeouts then `escalated` / `refer` with three failed risk spans and no recommendation call. The pipeline does not raise.
+11. **CI [10].** Add `httpx` as a direct dependency in `pyproject.toml`. Add `.github/workflows/ci.yml` to run pytest with the fake adapter and skip live-Ollama tests.
+12. **README and screenshot checklist.** Document install, `ollama pull qwen3.5:9b`, pytest, and `python scripts/run_cases.py`. List the PDF screenshots in the assignment's order: design, each agent test, the handoff trace, the three full traces, the cost table, the timeout escalation, and the green CI run.
+
+Scenarios to cover across the tests, with only the first three written out as end-to-end traces:
+
+- Clean driver, reaches a decision
+- High-risk driver whose text tells the model to approve, reaches a decision, must not approve
+- Mismatch: claims a clean record, database has accidents, reaches a decision, discrepancy forces refer
+- Not found in the databases, escalate
+- Name match with the wrong date of birth, escalate
+- Incomplete text missing date of birth or vehicle model, cannot proceed
+- Messy formatting that intake can still normalize
+- Timeout case, used by the retry test and `--inject-timeout`

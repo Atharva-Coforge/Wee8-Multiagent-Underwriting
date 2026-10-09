@@ -1,0 +1,111 @@
+{
+  "records": [
+    {
+      "person_id": "P-1001",
+      "full_name": "Maria Elena Ortiz",
+      "date_of_birth": "1984-05-12",
+      "accidents": [],
+      "violations": [],
+      "claims": []
+    },
+    {
+      "person_id": "P-1002",
+      "full_name": "Tyler James Brandt",
+      "date_of_birth": "2002-01-30",
+      "accidents": [
+        {
+          "date": "2025-02-18",
+          "at_fault": true,
+          "description": "Rear-ended a stopped vehicle on I-75.",
+          "bodily_injury": false,
+          "amount_paid_usd": 7400
+        },
+        {
+          "date": "2026-06-03",
+          "at_fault": true,
+          "description": "Lost control on a wet off-ramp and struck a guardrail and a parked car.",
+          "bodily_injury": true,
+          "amount_paid_usd": 22800
+        }
+      ],
+      "violations": [
+        {
+          "date": "2024-08-09",
+          "type": "speeding",
+          "description": "84 in a 60 zone."
+        },
+        {
+          "date": "2025-11-21",
+          "type": "red_light",
+          "description": "Ran a red light."
+        },
+        {
+          "date": "2026-07-14",
+          "type": "speeding",
+          "description": "71 in a 45 zone."
+        }
+      ],
+      "claims": []
+    },
+    {
+      "person_id": "P-1003",
+      "full_name": "Priya N. Shah",
+      "date_of_birth": "1994-07-19",
+      "accidents": [
+        {
+          "date": "2025-11-02",
+          "at_fault": true,
+          "description": "Ran a red light and struck a turning vehicle.",
+          "bodily_injury": false,
+          "amount_paid_usd": 6400
+        }
+      ],
+      "violations": [
+        {
+          "date": "2025-11-02",
+          "type": "red_light",
+          "description": "Citation from the same crash."
+        }
+      ],
+      "claims": []
+    },
+    {
+      "person_id": "P-1004",
+      "full_name": "Jordan A. Washington",
+      "date_of_birth": "1988-03-14",
+      "accidents": [],
+      "violations": [],
+      "claims": []
+    },
+    {
+      "person_id": "P-1005",
+      "full_name": "Alex M. Rivera",
+      "date_of_birth": "1991-03-22",
+      "accidents": [],
+      "violations": [],
+      "claims": []
+    },
+    {
+      "person_id": "P-1006",
+      "full_name": "Denise Carol Whitfield",
+      "date_of_birth": "1977-08-03",
+      "accidents": [],
+      "violations": [
+        {
+          "date": "2024-03-11",
+          "type": "speeding",
+          "description": "44 in a 35 zone."
+        }
+      ],
+      "claims": []
+    },
+    {
+      "person_id": "P-1007",
+      "full_name": "Robin Hale",
+      "date_of_birth": "1980-01-15",
+      "accidents": [],
+      "violations": [],
+      "claims": []
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "records": [
+    {
+      "person_id": "P-1001",
+      "full_name": "Maria Elena Ortiz",
+      "date_of_birth": "1984-05-12",
+      "policies": [
+        {
+          "carrier": "Buckeye Mutual",
+          "currently_insured": true,
+          "years_continuous": 12,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    },
+    {
+      "person_id": "P-1002",
+      "full_name": "Tyler James Brandt",
+      "date_of_birth": "2002-01-30",
+      "policies": [
+        {
+          "carrier": "QuickCover Auto",
+          "currently_insured": false,
+          "years_continuous": 2,
+          "lapse_days": 50,
+          "cancelled": false,
+          "non_renewed": true
+        }
+      ]
+    },
+    {
+      "person_id": "P-1003",
+      "full_name": "Priya N. Shah",
+      "date_of_birth": "1994-07-19",
+      "policies": [
+        {
+          "carrier": "River City Mutual",
+          "currently_insured": true,
+          "years_continuous": 4,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    },
+    {
+      "person_id": "P-1004",
+      "full_name": "Jordan A. Washington",
+      "date_of_birth": "1988-03-14",
+      "policies": [
+        {
+          "carrier": "State Auto",
+          "currently_insured": true,
+          "years_continuous": 10,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    },
+    {
+      "person_id": "P-1005",
+      "full_name": "Alex M. Rivera",
+      "date_of_birth": "1991-03-22",
+      "policies": [
+        {
+          "carrier": "Lakeshore Indemnity",
+          "currently_insured": true,
+          "years_continuous": 6,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    },
+    {
+      "person_id": "P-1006",
+      "full_name": "Denise Carol Whitfield",
+      "date_of_birth": "1977-08-03",
+      "policies": [
+        {
+          "carrier": "Lakeshore Indemnity",
+          "currently_insured": true,
+          "years_continuous": 7,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    }
+  ]
+}
