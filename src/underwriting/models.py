@@ -2,127 +2,41 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 Band = Literal["low", "moderate", "high", "severe"]
-Decision = Literal["approve", "deny", "refer"]
-PipelineStatus = Literal["completed", "referred_incomplete", "escalated"]
-Loose = str | int | float | bool | None
+Decision = Literal["approve", "deny", "refer", "reject"]
+RecommendationDecision = Literal["approve", "deny", "refer"]
+PipelineStatus = Literal["completed", "rejected", "escalated"]
+IntakeDecision = Literal["proceed", "reject", "escalate"]
+MatchStatus = Literal["full_match", "dob_mismatch", "not_found"]
+SpanStatus = Literal["ok", "error", "timeout", "escalated", "rejected"]
+
+_DATE = r"^\d{4}-\d{2}-\d{2}$"
 
 
-class _Loose(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class IntakeRecord(BaseModel):
+    """Normalized application. Required fields may be None when the text omitted them."""
 
-
-class RawAddress(_Loose):
-    city: str | None = None
-    state: str | None = None
-    zip: str | None = None
-
-
-class RawLicense(_Loose):
-    status: str | None = None
-    first_licensed_date: str | None = None
-
-
-class RawApplicant(_Loose):
+    case_id: str
+    raw_text: str
     full_name: str | None = None
-    date_of_birth: str | None = None
-    address: RawAddress | None = None
-    license: RawLicense | None = None
-
-
-class RawVehicle(_Loose):
-    year: Loose = None
-    make: str | None = None
-    model: str | None = None
-    primary_use: str | None = None
-    annual_mileage: Loose = None
-    garaging_zip: str | None = None
-
-
-class RawCoverage(_Loose):
-    liability_limits: str | None = None
-
-
-class RawPriorInsurance(_Loose):
-    currently_insured: Loose = None
-    years_continuous: Loose = None
-    lapse_days: Loose = None
-
-
-class RawAccident(_Loose):
-    date: str | None = None
-    at_fault: Loose = None
-    description: str | None = None
-    bodily_injury: Loose = None
-    amount_paid_usd: Loose = None
-
-
-class RawViolation(_Loose):
-    date: str | None = None
-    type: str | None = None
-    description: str | None = None
-
-
-class RawClaim(_Loose):
-    date: str | None = None
-    type: str | None = None
-    at_fault: Loose = None
-    amount_paid_usd: Loose = None
-
-
-class RawDrivingHistory(_Loose):
-    accidents: list[RawAccident] | None = None
-    violations: list[RawViolation] | None = None
-    other_claims: list[RawClaim] | None = None
-
-
-class RawApplication(_Loose):
-    application_id: str | None = None
-    applicant: RawApplicant | None = None
-    vehicle: RawVehicle | None = None
-    coverage_requested: RawCoverage | None = None
-    prior_insurance: RawPriorInsurance | None = None
-    driving_history: RawDrivingHistory | None = None
-    applicant_notes: str | None = None
-
-
-class Address(BaseModel):
-    city: str | None = None
-    state: str | None = None
-    zip: str | None = None
-
-
-class Applicant(BaseModel):
-    full_name: str | None = None
-    date_of_birth: str | None = None
-    address: Address | None = None
-    license_status: str | None = None
-    first_licensed_date: str | None = None
-
-
-class Vehicle(BaseModel):
-    year: int | None = None
-    make: str | None = None
-    model: str | None = None
-    primary_use: str | None = None
-    annual_mileage: int | None = None
-    garaging_zip: str | None = None
-
-
-class Coverage(BaseModel):
-    liability_limits: str | None = None
-
-
-class PriorInsurance(BaseModel):
-    currently_insured: bool | None = None
-    years_continuous: int | None = None
-    lapse_days: int | None = None
+    date_of_birth: str | None = Field(default=None, pattern=_DATE)
+    vehicle_year: int | None = None
+    vehicle_make: str | None = None
+    vehicle_model: str | None = None
+    coverage: str | None = None
+    occupation: str | None = None
+    missing_fields: list[str] = Field(default_factory=list)
+    decision: IntakeDecision
+    reason: str
+    model_decision: IntakeDecision | None = None
+    override: bool = False
+    applicant_claims: str = ""
 
 
 class Accident(BaseModel):
-    date: str
+    date: str = Field(pattern=_DATE)
     at_fault: bool
     description: str
     bodily_injury: bool
@@ -130,46 +44,81 @@ class Accident(BaseModel):
 
 
 class Violation(BaseModel):
-    date: str
+    date: str = Field(pattern=_DATE)
     type: str
     description: str
 
 
-class OtherClaim(BaseModel):
-    date: str
+class Claim(BaseModel):
+    date: str = Field(pattern=_DATE)
     type: str
     at_fault: bool
+    description: str
+    bodily_injury: bool
     amount_paid_usd: int
 
 
-class DrivingHistory(BaseModel):
-    accidents: list[Accident] | None = None
-    violations: list[Violation] | None = None
-    other_claims: list[OtherClaim] | None = None
+class DrivingHistoryRecord(BaseModel):
+    person_id: str
+    full_name: str
+    date_of_birth: str = Field(pattern=_DATE)
+    accidents: list[Accident]
+    violations: list[Violation]
+    claims: list[Claim]
 
 
-class IntakeRecord(BaseModel):
-    application_id: str
-    raw_application: RawApplication
-    applicant: Applicant
-    vehicle: Vehicle
-    coverage_requested: Coverage
-    prior_insurance: PriorInsurance
-    driving_history: DrivingHistory
-    applicant_notes: str = ""
-    missing_fields: list[str] = Field(default_factory=list)
-    intake_notes: str = ""
+class OwnedVehicle(BaseModel):
+    year: int
+    make: str
+    model: str
+    currently_insured: bool
+
+
+class VehicleRecord(BaseModel):
+    person_id: str
+    full_name: str
+    date_of_birth: str = Field(pattern=_DATE)
+    vehicles: list[OwnedVehicle]
+
+
+class Policy(BaseModel):
+    carrier: str
+    currently_insured: bool
+    years_continuous: int
+    lapse_days: int
+    cancelled: bool
+    non_renewed: bool
+
+
+class PriorInsuranceRecord(BaseModel):
+    person_id: str
+    full_name: str
+    date_of_birth: str = Field(pattern=_DATE)
+    policies: list[Policy]
+
+
+class LookupResult(BaseModel):
+    """Rows found for one normalized name and date of birth."""
+
+    match_status: MatchStatus
+    person_id: str | None = None
+    driving_history: DrivingHistoryRecord | None = None
+    vehicles: VehicleRecord | None = None
+    prior_insurance: PriorInsuranceRecord | None = None
 
 
 class EnrichedCase(BaseModel):
+    """Intake plus lookup. Database rows are verified."""
+
     intake: IntakeRecord
+    lookup: LookupResult
     claims_band: Band
     violation_severity: Band
     vehicle_risk_band: Band
-    territory_factor: Band
+    discrepancy_flags: list[str] = Field(default_factory=list)
     data_gaps: list[str] = Field(default_factory=list)
-    enrichment_notes: str = ""
-    unverified: Literal[True] = True
+    summary: str
+    verified: Literal[True] = True
 
 
 class RiskFactor(BaseModel):
@@ -186,10 +135,14 @@ class RiskAssessment(BaseModel):
 
 
 class Recommendation(BaseModel):
+    """approve, deny, or refer. reject is an intake outcome, not a recommendation."""
+
     assessment: RiskAssessment
-    decision: Decision
+    decision: RecommendationDecision
     rationale: str
     conditions: list[str] = Field(default_factory=list)
+    override: bool = False
+    model_decision: RecommendationDecision | None = None
 
 
 class TokenUsage(BaseModel):
@@ -199,15 +152,18 @@ class TokenUsage(BaseModel):
 
 
 class Span(BaseModel):
+    """One agent call. input and output are short summaries, not the nested message."""
+
     agent: str
     started_at: str
     duration_ms: float
     input: dict[str, Any]
     output: dict[str, Any] | None = None
     token_usage: TokenUsage
-    status: Literal["ok", "error"]
+    status: SpanStatus
     attempt: int = 1
     error: str | None = None
+    override: bool = False
 
 
 class Trace(BaseModel):
@@ -217,7 +173,10 @@ class Trace(BaseModel):
 
 
 class PipelineResult(BaseModel):
+    """Final outcome. Escalated and rejected cases have no recommendation."""
+
     status: PipelineStatus
     decision: Decision
     rationale: str
+    case_id: str
     trace: Trace | None = None

@@ -31,9 +31,9 @@ Lookups match normalized full name plus date of birth. The file name is never th
 | Agent | Reads | Produces |
 | --- | --- | --- |
 | Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
-| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: the intake record, claims band, violation severity, vehicle risk band, territory factor, discrepancy flags, `data_gaps`, and a summary. Or an escalation |
-| Risk scoring | Bands, discrepancies, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
-| Recommendation | Score, tier, discrepancies, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions |
+| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: the intake record, the lookup, claims band, violation severity, vehicle risk band, `discrepancy_flags`, `data_gaps`, a summary, and `verified` (always true). Or an escalation |
+| Risk scoring | Bands, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
+| Recommendation | Score, tier, discrepancy flags, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions. `reject` is not a recommendation |
 
 ## Intake
 
@@ -53,7 +53,7 @@ Either stop ends the chain. Enrichment does not run.
 
 `src/underwriting/databases.py` does the lookups. The model does not search the files.
 
-- Full match: one model call adds the bands, compares the applicant's claims with the records, and flags discrepancies (a "clean record" claim when the history has accidents). Supplemental facts are unverified inferences from those records.
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true.
 - Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
 - No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
 - Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.
@@ -62,9 +62,9 @@ An escalation does not call the later agents.
 
 ## Risk scoring and recommendation
 
-Discrepancies and data gaps push the score up. They do not produce a confident low score.
+Discrepancy flags and data gaps push the score up. They do not produce a confident low score.
 
-Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy becomes `refer`. An override is recorded on the span.
+Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy flag becomes `refer`. The recommendation is `approve`, `deny`, or `refer`. An override is recorded on the span.
 
 Only risk scoring retries, and only on timeout. Three attempts, with a short backoff between them. Each attempt is its own span. If all three time out, status is `escalated`, decision is `refer`, and the reason names the timeout. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
 
