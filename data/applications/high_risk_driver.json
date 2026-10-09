@@ -1,22 +1,14 @@
 {
   "application_id": "APP-2026-1002",
-  "submitted_at": "2026-09-25T21:47:00Z",
-  "channel": "online",
   "applicant": {
     "full_name": "Tyler James Brandt",
     "date_of_birth": "2002-01-30",
-    "marital_status": "single",
-    "occupation": "Warehouse associate",
     "address": {
-      "street": "77 Kessler Rd Apt 3B",
       "city": "Dayton",
       "state": "OH",
       "zip": "45402"
     },
-    "phone": "937-555-0188",
-    "email": "tbrandt02@example.com",
     "license": {
-      "state": "OH",
       "status": "valid",
       "first_licensed_date": "2018-03-15"
     }
@@ -24,30 +16,17 @@
   "vehicle": {
     "year": 2020,
     "make": "Dodge",
-    "model": "Charger",
-    "trim": "Scat Pack",
-    "vin": "2C3CDXGJ5LH184520",
+    "model": "Charger Scat Pack",
     "primary_use": "commute",
     "annual_mileage": 18500,
-    "garaging_zip": "45402",
-    "ownership": "financed",
-    "anti_theft": false,
-    "safety_features": []
+    "garaging_zip": "45402"
   },
   "coverage_requested": {
-    "liability_limits": "50/100/50",
-    "collision_deductible": 1000,
-    "comprehensive_deductible": 1000,
-    "uninsured_motorist": "50/100",
-    "medical_payments": 1000,
-    "rental_reimbursement": false,
-    "effective_date": "2026-10-01"
+    "liability_limits": "50/100/50"
   },
   "prior_insurance": {
     "currently_insured": false,
-    "carrier": "QuickCover Auto",
     "years_continuous": 2,
-    "policy_end_date": "2026-08-12",
     "lapse_days": 50
   },
   "driving_history": {

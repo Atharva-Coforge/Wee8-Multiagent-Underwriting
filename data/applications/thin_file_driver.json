@@ -1,22 +1,14 @@
 {
   "application_id": "APP-2026-1003",
-  "submitted_at": "2026-09-29T09:12:00Z",
-  "channel": "agent",
   "applicant": {
     "full_name": "Arjun Mehta",
     "date_of_birth": "2006-11-20",
-    "marital_status": "single",
-    "occupation": "University student",
     "address": {
-      "street": "1520 N High St Unit 412",
       "city": "Columbus",
       "state": "OH",
       "zip": "43201"
     },
-    "phone": "614-555-0107",
-    "email": "arjun.mehta@example.com",
     "license": {
-      "state": "OH",
       "status": "valid",
       "first_licensed_date": "2026-02-10"
     }
@@ -25,29 +17,16 @@
     "year": 2014,
     "make": "Toyota",
     "model": "Corolla",
-    "trim": "LE",
-    "vin": "2T1BURHE4EC118342",
     "primary_use": "pleasure",
     "annual_mileage": null,
-    "garaging_zip": "43201",
-    "ownership": "owned",
-    "anti_theft": null,
-    "safety_features": []
+    "garaging_zip": "43201"
   },
   "coverage_requested": {
-    "liability_limits": "25/50/25",
-    "collision_deductible": 1000,
-    "comprehensive_deductible": 500,
-    "uninsured_motorist": null,
-    "medical_payments": null,
-    "rental_reimbursement": false,
-    "effective_date": "2026-10-10"
+    "liability_limits": "25/50/25"
   },
   "prior_insurance": {
     "currently_insured": false,
-    "carrier": null,
     "years_continuous": 0,
-    "policy_end_date": null,
     "lapse_days": null
   },
   "driving_history": {

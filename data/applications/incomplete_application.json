@@ -1,22 +1,14 @@
 {
   "application_id": "APP-2026-2001",
-  "submitted_at": "2026-09-30T16:40:00Z",
-  "channel": "online",
   "applicant": {
     "full_name": "Kevin Osei",
     "date_of_birth": null,
-    "marital_status": "married",
-    "occupation": "Electrician",
     "address": {
-      "street": "905 Prospect St",
       "city": "Cleveland",
       "state": "OH",
       "zip": "44115"
     },
-    "phone": "216-555-0174",
-    "email": "kevin.osei@example.com",
     "license": {
-      "state": "OH",
       "status": "valid",
       "first_licensed_date": "2005-07-11"
     }
@@ -24,29 +16,16 @@
   "vehicle": {
     "year": 2019,
     "make": "Ford",
-    "trim": "XLT",
-    "vin": "1FTEW1EP3KFA20391",
     "primary_use": "commute",
     "annual_mileage": 15000,
-    "garaging_zip": "44115",
-    "ownership": "owned",
-    "anti_theft": true,
-    "safety_features": ["rear camera"]
+    "garaging_zip": "44115"
   },
   "coverage_requested": {
-    "liability_limits": "",
-    "collision_deductible": 500,
-    "comprehensive_deductible": 500,
-    "uninsured_motorist": "100/300",
-    "medical_payments": 5000,
-    "rental_reimbursement": false,
-    "effective_date": "2026-10-15"
+    "liability_limits": ""
   },
   "prior_insurance": {
     "currently_insured": true,
-    "carrier": "Great Lakes Casualty",
     "years_continuous": 9,
-    "policy_end_date": "2026-10-15",
     "lapse_days": 0
   },
   "driving_history": {

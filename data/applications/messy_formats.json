@@ -1,22 +1,14 @@
 {
   "application_id": "APP-2026-2004",
-  "submitted_at": "10/04/2026 3:18 PM",
-  "channel": "Agent",
   "applicant": {
     "full_name": "WASHINGTON, JORDAN A.",
     "date_of_birth": "03/14/1988",
-    "marital_status": "M",
-    "occupation": "teacher",
     "address": {
-      "street": "1207 e. main street",
       "city": "springfield",
       "state": "ohio",
       "zip": "45503-4411"
     },
-    "phone": "(937) 555 0131",
-    "email": "JWashington@Example.com",
     "license": {
-      "state": "Ohio",
       "status": "Valid",
       "first_licensed_date": "Aug 2004"
     }
@@ -25,29 +17,16 @@
     "year": "2019",
     "make": "HONDA",
     "model": "civic ex",
-    "trim": "",
-    "vin": "19xfc1f38ke 205 117",
     "primary_use": "to work + school drop off",
     "annual_mileage": "approx 10k",
-    "garaging_zip": "45503",
-    "ownership": "paid off",
-    "anti_theft": "yes",
-    "safety_features": "backup cam, lane departure warning"
+    "garaging_zip": "45503"
   },
   "coverage_requested": {
-    "liability_limits": "$100k / $300k / $50k",
-    "collision_deductible": "$500",
-    "comprehensive_deductible": "500.00",
-    "uninsured_motorist": "same as liability",
-    "medical_payments": "5k",
-    "rental_reimbursement": "Y",
-    "effective_date": "11/1/26"
+    "liability_limits": "$100k / $300k / $50k"
   },
   "prior_insurance": {
     "currently_insured": "yes",
-    "carrier": "state auto?",
     "years_continuous": "10+",
-    "policy_end_date": "Nov 1",
     "lapse_days": "none"
   },
   "driving_history": {
