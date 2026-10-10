@@ -78,7 +78,7 @@ def test_maria_ortiz_full_match_is_a_low_band():
     _assert_raw_text_stays_out(llm, marker)
     system = llm.calls[0].system
     assert "Database rows are verified" in system
-    assert "nothing at fault in the last 3 years" in system
+    assert "nothing at fault" in system
     assert "two or more at-fault accidents, or any bodily injury" in system
 
 

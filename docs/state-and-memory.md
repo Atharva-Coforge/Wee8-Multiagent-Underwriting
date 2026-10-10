@@ -53,7 +53,7 @@ Either stop ends the chain. Enrichment does not run.
 
 `src/underwriting/databases.py` does the lookups. The model does not search the files.
 
-- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault in 3 years, and severe means two or more at-fault accidents or any bodily injury. Violations and the vehicle record have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations and the vehicle record have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
 - Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
 - No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
 - Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.

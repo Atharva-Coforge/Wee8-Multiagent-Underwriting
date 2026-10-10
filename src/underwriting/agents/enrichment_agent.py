@@ -21,7 +21,7 @@ from underwriting.models import (
 _SYSTEM = """\
 Database rows are verified facts. The applicant's own statements are claims.
 
-Rate claims_band, violation_severity, and vehicle_risk_band from the records. Each value is "low", "moderate", "high", or "severe". For claims and violations, count only the last 3 years. Do not count one crash twice when it is both an accident and a claim. If the records for a band are missing, rate that band low. The gap is already listed separately.
+Rate claims_band, violation_severity, and vehicle_risk_band from the records. Each value is "low", "moderate", "high", or "severe". For claims and violations check the entire record. Do not count one crash twice when it is both an accident and a claim. If the records for a band are missing, rate that band low. The gap is already listed separately.
 
 claims_band:
 - low: nothing at fault on record. A not-at-fault glass or comprehensive claim is still low.
