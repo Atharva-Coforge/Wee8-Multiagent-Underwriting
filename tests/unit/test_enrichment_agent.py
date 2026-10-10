@@ -323,5 +323,18 @@ def test_data_gaps_come_from_code_not_the_model():
     _assert_raw_text_stays_out(llm, marker)
 
 
+def test_system_prompt_has_field_priority_and_three_examples():
+    intake = _intake()
+    llm = FakeLLMAdapter([_LOW_REPLY])
+
+    enrichment_agent(intake, llm=llm)
+
+    system = llm.calls[0].system
+    assert "Field priority" in system
+    assert "Example 1 (clean)" in system
+    assert "Example 2 (messy)" in system
+    assert "Example 3 (risky)" in system
+
+
 def _write(path: Path, records: list[dict]) -> None:
     path.write_text(json.dumps({"records": records}))

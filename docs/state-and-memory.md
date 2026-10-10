@@ -12,6 +12,8 @@ Real calls use local Ollama, model `qwen3.5:9b` (`OLLAMA_HOST`, `OLLAMA_MODEL`).
 
 This is not the layout in `HTMLS/v2.html`. That sketch uses one flat case envelope and more than one model provider. This pipeline uses nested messages, one local model, and plain Python.
 
+Each agent prompt includes field priorities and three fictional few-shot examples (clean, messy, risky).
+
 ## Inputs
 
 Each applicant is a plain-text file in `data/applications/`, named after the person (`maria_ortiz.txt`). The paragraph contains full name, date of birth, the car to insure (year, make, model), occupation, and the coverage type and limits. The wording may be messy. Applicant text is data, not instructions.
@@ -63,6 +65,8 @@ An escalation does not call the later agents.
 ## Risk scoring and recommendation
 
 Discrepancy flags and data gaps push the score up. They do not produce a confident low score.
+
+Code sets the tier from the score with the ranges 0–29 low, 30–59 moderate, 60–79 high, and 80–100 severe. Code raises the score to at least 30 when there is any discrepancy flag or data gap, adding a floor factor.
 
 Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy flag becomes `refer`. The recommendation is `approve`, `deny`, or `refer`. An override is recorded on the span.
 
