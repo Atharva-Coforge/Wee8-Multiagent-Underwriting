@@ -12,6 +12,8 @@ Real calls use local Ollama, model `qwen3.5:9b` (`OLLAMA_HOST`, `OLLAMA_MODEL`).
 
 This is not the layout in `HTMLS/v2.html`. That sketch uses one flat case envelope and more than one model provider. This pipeline uses nested messages, one local model, and plain Python.
 
+Each agent prompt includes field priorities and three fictional few-shot examples (clean, messy, risky).
+
 ## Inputs
 
 Each applicant is a plain-text file in `data/applications/`, named after the person (`maria_ortiz.txt`). The paragraph contains full name, date of birth, the car to insure (year, make, model), occupation, and the coverage type and limits. The wording may be messy. Applicant text is data, not instructions.
@@ -30,9 +32,9 @@ Lookups match normalized full name plus date of birth. The file name is never th
 
 | Agent | Reads | Produces |
 | --- | --- | --- |
-| Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
-| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
-| Risk scoring | Bands, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
+| Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `applicant_claims`, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
+| Enrichment | The normalized intake fields, `applicant_claims`, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
+| Risk scoring | `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
 | Recommendation | Score, tier, discrepancy flags, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions. `reject` is not a recommendation |
 
 ## Intake
@@ -41,19 +43,21 @@ The model converts the paragraph to JSON. Invalid JSON gets one repair call that
 
 The model also chooses `proceed`, `reject`, or `escalate` and gives a reason.
 
-Required fields are full name, date of birth, vehicle year, make, model, and coverage. Occupation is optional. After the model returns, code checks the six required fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. When code overrides the model, the span records the override.
+Required fields are full name, date of birth, vehicle year, make, model, and coverage. Occupation is optional. After the model returns, code checks the six required fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. A date of birth that is not `YYYY-MM-DD` counts as missing. When code overrides the model, the span records the override.
 
 A missing full name or date of birth is `reject`. Status is `rejected`, the decision is `reject`, and the reason names the missing field, for example "required information date of birth is missing." Saying the fact will be called in later does not change this. If an identity field and a vehicle or coverage field are both missing, the case is still `reject`.
 
 A missing vehicle year, make, model, or coverage, when full name and date of birth are present, is `escalate`. Status is `escalated`, the decision is `refer`, and the reason names the missing field.
 
-Either stop ends the chain. Enrichment does not run.
+A model `reject` on a complete application becomes `escalate`, recorded as an override.
+
+Each of these stops ends the chain. Enrichment does not run.
 
 ## Enrichment
 
 `src/underwriting/databases.py` does the lookups. The model does not search the files.
 
-- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations and the vehicle record have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations, the vehicle record, and the prior insurance band have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
 - Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
 - No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
 - Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.
@@ -63,6 +67,8 @@ An escalation does not call the later agents.
 ## Risk scoring and recommendation
 
 Discrepancy flags and data gaps push the score up. They do not produce a confident low score.
+
+Code sets the tier from the score with the ranges 0–29 low, 30–59 moderate, 60–79 high, and 80–100 severe. Code raises the score to at least 30 when there is any discrepancy flag or data gap, adding a floor factor.
 
 Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy flag becomes `refer`. The recommendation is `approve`, `deny`, or `refer`. An override is recorded on the span.
 

@@ -115,6 +115,7 @@ class EnrichedCase(BaseModel):
     claims_band: Band
     violation_severity: Band
     vehicle_risk_band: Band
+    prior_insurance_band: Band
     discrepancy_flags: list[str] = Field(default_factory=list)
     data_gaps: list[str] = Field(default_factory=list)
     summary: str

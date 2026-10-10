@@ -19,7 +19,9 @@ If full name or date of birth is missing, intake rejects the case. Status is `re
 
 If full name and date of birth are present, and vehicle year, vehicle make, vehicle model, or coverage is missing, intake escalates the case. Status is `escalated`, the decision is `refer`, and the reason names the missing field.
 
-Either stop ends the chain, so enrichment does not run. Occupation is collected when it is present. A missing occupation does not reject or escalate the case.
+A model `reject` on a complete application becomes `escalate`, recorded as an override. A date of birth that is not `YYYY-MM-DD` counts as missing.
+
+Each of these stops ends the chain, so enrichment does not run. Occupation is collected when it is present. A missing occupation does not reject or escalate the case.
 
 `databases/` holds three JSON files. Every record has `person_id`, `full_name`, and `date_of_birth`. A lookup matches the normalized full name and date of birth from intake.
 
