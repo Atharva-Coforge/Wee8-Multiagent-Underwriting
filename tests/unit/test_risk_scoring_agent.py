@@ -81,6 +81,7 @@ def _enriched(**overrides: object) -> EnrichedCase:
         "claims_band": "low",
         "violation_severity": "low",
         "vehicle_risk_band": "low",
+        "prior_insurance_band": "low",
         "discrepancy_flags": [],
         "data_gaps": [],
         "summary": "Nothing at fault and no violations.",
@@ -298,6 +299,16 @@ def test_out_of_range_score_uses_the_repair_reply():
     assert "The previous reply was invalid." in llm.calls[1].user
     assert "120" in llm.calls[1].user
     assert "Return only corrected JSON." in llm.calls[1].user
+    _assert_slice_stays_closed(llm)
+
+
+def test_user_message_includes_prior_insurance_band():
+    enriched = _enriched(prior_insurance_band="severe")
+    llm = FakeLLMAdapter([{"score": 88, "factors": [_factor()]}])
+
+    risk_scoring_agent(enriched, llm=llm)
+
+    assert "prior_insurance_band" in llm.calls[0].user
     _assert_slice_stays_closed(llm)
 
 

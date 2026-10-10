@@ -14,6 +14,7 @@ _LOW_REPLY = {
     "claims_band": "low",
     "violation_severity": "low",
     "vehicle_risk_band": "low",
+    "prior_insurance_band": "low",
     "discrepancy_flags": [],
     "summary": "One not-at-fault glass claim and no violations.",
 }
@@ -104,6 +105,7 @@ def test_priya_shah_keeps_the_scripted_discrepancy_flag():
         "claims_band": "moderate",
         "violation_severity": "moderate",
         "vehicle_risk_band": "low",
+        "prior_insurance_band": "low",
         "discrepancy_flags": [flag],
         "summary": "The clean-record claim conflicts with an at-fault accident.",
     }
@@ -119,6 +121,42 @@ def test_priya_shah_keeps_the_scripted_discrepancy_flag():
     assert case.discrepancy_flags == [flag]
     assert case.lookup.person_id == "P-1003"
     assert case.lookup.match_status == "full_match"
+    _assert_raw_text_stays_out(llm, marker)
+
+
+def test_tyler_brandt_prior_insurance_band_is_severe():
+    marker = "RAW-TEXT-MARKER tyler-brandt"
+    intake = _intake(
+        case_id="tyler_brandt",
+        raw_text=marker,
+        full_name="Tyler James Brandt",
+        date_of_birth="2002-01-30",
+        vehicle_year=2020,
+        vehicle_make="Dodge",
+        vehicle_model="Charger",
+        coverage="50/100/50",
+        occupation="warehouse associate",
+        applicant_claims="prior policy was non-renewed",
+    )
+    reply = {
+        "claims_band": "severe",
+        "violation_severity": "severe",
+        "vehicle_risk_band": "high",
+        "prior_insurance_band": "severe",
+        "discrepancy_flags": [],
+        "summary": "A 50-day lapse and a non-renewal.",
+    }
+    llm = FakeLLMAdapter([reply])
+
+    result = enrichment_agent(intake, llm=llm)
+    case = result.output
+
+    assert case.lookup.match_status == "full_match"
+    assert case.lookup.person_id == "P-1002"
+    user = llm.calls[0].user
+    assert '"lapse_days": 50' in user
+    assert '"non_renewed": true' in user
+    assert case.prior_insurance_band == "severe"
     _assert_raw_text_stays_out(llm, marker)
 
 

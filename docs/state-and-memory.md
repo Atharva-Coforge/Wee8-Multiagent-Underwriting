@@ -33,7 +33,7 @@ Lookups match normalized full name plus date of birth. The file name is never th
 | Agent | Reads | Produces |
 | --- | --- | --- |
 | Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
-| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
+| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
 | Risk scoring | Bands, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
 | Recommendation | Score, tier, discrepancy flags, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions. `reject` is not a recommendation |
 
@@ -49,13 +49,15 @@ A missing full name or date of birth is `reject`. Status is `rejected`, the deci
 
 A missing vehicle year, make, model, or coverage, when full name and date of birth are present, is `escalate`. Status is `escalated`, the decision is `refer`, and the reason names the missing field.
 
+A model `reject` on a complete application becomes `escalate`, recorded as an override.
+
 Either stop ends the chain. Enrichment does not run.
 
 ## Enrichment
 
 `src/underwriting/databases.py` does the lookups. The model does not search the files.
 
-- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations and the vehicle record have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations, the vehicle record, and the prior insurance band have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
 - Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
 - No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
 - Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.

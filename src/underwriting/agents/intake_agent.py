@@ -233,6 +233,12 @@ def _decision(
     elif missing:
         decision = "escalate"
         reason = _missing_reason(missing[0])
+    elif model_decision == "reject":
+        decision = "escalate"
+        reason = (
+            "model rejected a complete application, sent for human review: "
+            f"{extracted.reason}"
+        )
     else:
         decision = model_decision
         reason = extracted.reason

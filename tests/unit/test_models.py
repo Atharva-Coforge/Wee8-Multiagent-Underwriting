@@ -154,6 +154,7 @@ def _enriched() -> EnrichedCase:
         claims_band="high",
         violation_severity="high",
         vehicle_risk_band="moderate",
+        prior_insurance_band="low",
         discrepancy_flags=["applicant claims no accidents or tickets; driving history has both"],
         summary="Clean-record claim does not match driving history.",
     )
@@ -171,6 +172,14 @@ def test_enriched_case_carries_discrepancy_flags_and_verified_rows():
 
     payload = case.model_dump()
     payload["verified"] = False
+    with pytest.raises(ValidationError):
+        EnrichedCase.model_validate(payload)
+
+
+def test_enriched_case_requires_prior_insurance_band():
+    payload = _enriched().model_dump()
+    del payload["prior_insurance_band"]
+
     with pytest.raises(ValidationError):
         EnrichedCase.model_validate(payload)
 
