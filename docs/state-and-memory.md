@@ -32,9 +32,9 @@ Lookups match normalized full name plus date of birth. The file name is never th
 
 | Agent | Reads | Produces |
 | --- | --- | --- |
-| Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
-| Enrichment | The normalized intake fields, what the applicant claimed, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
-| Risk scoring | Bands, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
+| Intake | The raw paragraph only | `IntakeRecord`: `raw_text`, normalized name, DOB, vehicle year/make/model, occupation, coverage, `applicant_claims`, `missing_fields`, a decision of `proceed`, `reject`, or `escalate`, and a reason |
+| Enrichment | The normalized intake fields, `applicant_claims`, and the rows `databases.py` found | `EnrichedCase`: `intake`, `lookup`, `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, `discrepancy_flags`, `data_gaps`, `summary`, and `verified` (always true). Or an escalation |
+| Risk scoring | `claims_band`, `violation_severity`, `vehicle_risk_band`, `prior_insurance_band`, discrepancy flags, data gaps, the summary, and the vehicle and coverage needed to score | `RiskAssessment`: the enriched case, a score from 0 to 100, a tier (`low`, `moderate`, `high`, `severe`), and factors |
 | Recommendation | Score, tier, discrepancy flags, data gaps, and the summary | `Recommendation`: `approve`, `deny`, or `refer`, a rationale, and any conditions. `reject` is not a recommendation |
 
 ## Intake
@@ -43,7 +43,7 @@ The model converts the paragraph to JSON. Invalid JSON gets one repair call that
 
 The model also chooses `proceed`, `reject`, or `escalate` and gives a reason.
 
-Required fields are full name, date of birth, vehicle year, make, model, and coverage. Occupation is optional. After the model returns, code checks the six required fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. When code overrides the model, the span records the override.
+Required fields are full name, date of birth, vehicle year, make, model, and coverage. Occupation is optional. After the model returns, code checks the six required fields. If any is absent, null, or empty, the case cannot `proceed`, whatever the model said. A date of birth that is not `YYYY-MM-DD` counts as missing. When code overrides the model, the span records the override.
 
 A missing full name or date of birth is `reject`. Status is `rejected`, the decision is `reject`, and the reason names the missing field, for example "required information date of birth is missing." Saying the fact will be called in later does not change this. If an identity field and a vehicle or coverage field are both missing, the case is still `reject`.
 
@@ -51,7 +51,7 @@ A missing vehicle year, make, model, or coverage, when full name and date of bir
 
 A model `reject` on a complete application becomes `escalate`, recorded as an override.
 
-Either stop ends the chain. Enrichment does not run.
+Each of these stops ends the chain. Enrichment does not run.
 
 ## Enrichment
 
