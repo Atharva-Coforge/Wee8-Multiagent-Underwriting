@@ -57,7 +57,7 @@ Each of these stops ends the chain. Enrichment does not run.
 
 `src/underwriting/databases.py` does the lookups. The model does not search the files.
 
-- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations, the vehicle record, and the prior insurance band have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
+- Full match: one model call adds the bands, compares the applicant's claims with the records, and sets `discrepancy_flags` (a "clean record" claim when the history has accidents or tickets). The model returns one structured item per applicant statement with `applicant_said`, `record_shows`, and `contradicts`. Code keeps only items where `contradicts` is true and the quote appears in `applicant_claims`, then writes them as `discrepancy_flags`. Database rows are verified, so `verified` is always true. The prompt defines the scale. For claims, low means nothing at fault, and severe means two or more at-fault accidents or any bodily injury. Violations, the vehicle record, and the prior insurance band have their own steps on that same four-point scale. A missing record for a band is rated low, because the gap is already in `data_gaps`.
 - Name matches and date of birth does not: stop with status `escalated`, decision `refer`, reason is a possible identity mismatch.
 - No row in any database, or no driving-history row: stop with status `escalated`, decision `refer`, reason `insufficient information found`.
 - Missing only from some databases, such as no prior-insurance row, while driving history exists: record `data_gaps` and continue.
@@ -70,7 +70,7 @@ Discrepancy flags and data gaps push the score up. They do not produce a confide
 
 Code sets the tier from the score with the ranges 0–29 low, 30–59 moderate, 60–79 high, and 80–100 severe. Code raises the score to at least 30 when there is any discrepancy flag or data gap, adding a floor factor.
 
-Code guardrails run after the recommendation model. A `severe` tier cannot be approved. An unresolved discrepancy flag becomes `refer`. The recommendation is `approve`, `deny`, or `refer`. An override is recorded on the span.
+The model decides approve, deny, or refer, using the seven rules in its prompt as guidance. Code guardrails only block an approve when there is a discrepancy flag or the tier is severe, and those cases become refer. An override triggers one extra model call for a rationale that matches the final decision, recorded as an override with the model's original decision and rationale. Conditions are kept only on approve: if that list is empty and data gaps are non-empty, one condition is added per gap in the form "resolve: <gap>". Deny and refer have no conditions. The model does the reasoning, and code enforces the lines that must never be crossed.
 
 Only risk scoring retries, and only on timeout. Three attempts, with a short backoff between them. Each attempt is its own span. If all three time out, status is `escalated`, decision is `refer`, and the reason names the timeout. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
 

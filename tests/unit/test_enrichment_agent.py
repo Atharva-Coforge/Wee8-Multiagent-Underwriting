@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.fakes import FakeLLMAdapter
-from underwriting.agents.enrichment_agent import enrichment_agent
+from underwriting.agents.enrichment_agent import _Discrepancy, _kept_flags, enrichment_agent
 from underwriting.agents.errors import AgentEscalation
 from underwriting.models import IntakeRecord, TokenUsage
 
@@ -15,7 +15,7 @@ _LOW_REPLY = {
     "violation_severity": "low",
     "vehicle_risk_band": "low",
     "prior_insurance_band": "low",
-    "discrepancy_flags": [],
+    "discrepancies": [],
     "summary": "One not-at-fault glass claim and no violations.",
 }
 
@@ -86,10 +86,6 @@ def test_maria_ortiz_full_match_is_a_low_band():
 def test_priya_shah_keeps_the_scripted_discrepancy_flag():
     marker = "RAW-TEXT-MARKER priya-shah"
     claim = "clean record, no accidents and no tickets"
-    flag = (
-        "applicant claims no accidents; driving history has 1 at-fault "
-        "accident on 2025-11-02"
-    )
     intake = _intake(
         case_id="clean_claim_mismatch",
         raw_text=marker,
@@ -106,7 +102,13 @@ def test_priya_shah_keeps_the_scripted_discrepancy_flag():
         "violation_severity": "moderate",
         "vehicle_risk_band": "low",
         "prior_insurance_band": "low",
-        "discrepancy_flags": [flag],
+        "discrepancies": [
+            {
+                "applicant_said": "no accidents",
+                "record_shows": "driving history has 1 at-fault accident on 2025-11-02",
+                "contradicts": True,
+            }
+        ],
         "summary": "The clean-record claim conflicts with an at-fault accident.",
     }
     llm = FakeLLMAdapter([reply])
@@ -118,7 +120,8 @@ def test_priya_shah_keeps_the_scripted_discrepancy_flag():
     assert claim in user
     assert "2025-11-02" in user
     assert "Ran a red light and struck a turning vehicle." in user
-    assert case.discrepancy_flags == [flag]
+    assert len(case.discrepancy_flags) == 1
+    assert case.discrepancy_flags[0].startswith("applicant claims no accidents")
     assert case.lookup.person_id == "P-1003"
     assert case.lookup.match_status == "full_match"
     _assert_raw_text_stays_out(llm, marker)
@@ -143,7 +146,13 @@ def test_tyler_brandt_prior_insurance_band_is_severe():
         "violation_severity": "severe",
         "vehicle_risk_band": "high",
         "prior_insurance_band": "severe",
-        "discrepancy_flags": [],
+        "discrepancies": [
+            {
+                "applicant_said": "prior policy was non-renewed",
+                "record_shows": "non_renewed: true",
+                "contradicts": False,
+            }
+        ],
         "summary": "A 50-day lapse and a non-renewal.",
     }
     llm = FakeLLMAdapter([reply])
@@ -157,6 +166,7 @@ def test_tyler_brandt_prior_insurance_band_is_severe():
     assert '"lapse_days": 50' in user
     assert '"non_renewed": true' in user
     assert case.prior_insurance_band == "severe"
+    assert case.discrepancy_flags == []
     _assert_raw_text_stays_out(llm, marker)
 
 
@@ -372,6 +382,138 @@ def test_system_prompt_has_field_priority_and_three_examples():
     assert "Example 1 (clean)" in system
     assert "Example 2 (messy)" in system
     assert "Example 3 (risky)" in system
+
+
+def test_invented_claim_is_dropped():
+    intake = _intake(applicant_claims="insured continuously; no accidents or tickets")
+    reply = {
+        **_LOW_REPLY,
+        "discrepancies": [
+            {
+                "applicant_said": "clean history",
+                "record_shows": "2 at-fault accidents",
+                "contradicts": True,
+            }
+        ],
+    }
+    llm = FakeLLMAdapter([reply])
+
+    result = enrichment_agent(intake, llm=llm)
+
+    assert result.output.discrepancy_flags == []
+
+
+def test_quote_matches_across_case_and_whitespace():
+    intake = _intake(applicant_claims="No Accidents on file")
+    reply = {
+        **_LOW_REPLY,
+        "discrepancies": [
+            {
+                "applicant_said": "no   accidents",
+                "record_shows": "history lists one",
+                "contradicts": True,
+            }
+        ],
+    }
+    llm = FakeLLMAdapter([reply])
+
+    result = enrichment_agent(intake, llm=llm)
+
+    assert result.output.discrepancy_flags == [
+        "applicant claims no   accidents; history lists one"
+    ]
+
+
+def test_empty_applicant_claims_drop_every_contradiction():
+    intake = _intake(
+        case_id="robin_hale",
+        full_name="Robin Hale",
+        date_of_birth="1980-01-15",
+        vehicle_year=2015,
+        vehicle_make="Toyota",
+        vehicle_model="Camry",
+        occupation=None,
+        applicant_claims="",
+    )
+    reply = {
+        **_LOW_REPLY,
+        "discrepancies": [
+            {
+                "applicant_said": "no accidents",
+                "record_shows": "history lists one",
+                "contradicts": True,
+            }
+        ],
+    }
+    llm = FakeLLMAdapter([reply])
+
+    result = enrichment_agent(intake, llm=llm)
+
+    assert result.output.discrepancy_flags == []
+
+
+def _item(
+    said: str,
+    shows: str = "records differ",
+    contradicts: bool = True,
+) -> _Discrepancy:
+    return _Discrepancy(
+        applicant_said=said,
+        record_shows=shows,
+        contradicts=contradicts,
+    )
+
+
+@pytest.mark.parametrize(
+    ("claims", "items", "expected"),
+    [
+        ("", [_item("stated anything")], []),
+        (
+            "stated anything",
+            [_item("stated anything", "records differ", True)],
+            ["applicant claims stated anything; records differ"],
+        ),
+        ("stated anything", [_item("stated anything", "records agree", False)], []),
+        ("stated anything", [_item("other words", "records differ", True)], []),
+        ("stated anything", [_item("   ", "records differ", True)], []),
+        ("stated anything", [_item("", "records differ", True)], []),
+        (
+            "Stated Anything",
+            [_item("stated anything")],
+            ["applicant claims stated anything; records differ"],
+        ),
+        (
+            "stated anything else",
+            [_item("stated   anything")],
+            ["applicant claims stated   anything; records differ"],
+        ),
+        (
+            "stated anything and more",
+            [
+                _item("stated anything", "records differ", True),
+                _item("and more", "records agree", False),
+                _item("never said", "records differ", True),
+            ],
+            ["applicant claims stated anything; records differ"],
+        ),
+    ],
+)
+def test_kept_flags(
+    claims: str,
+    items: list[_Discrepancy],
+    expected: list[str],
+):
+    assert _kept_flags(items, claims) == expected
+
+
+def test_system_prompt_confirmed_claim_is_not_a_discrepancy():
+    intake = _intake()
+    llm = FakeLLMAdapter([_LOW_REPLY])
+
+    enrichment_agent(intake, llm=llm)
+
+    system = llm.calls[0].system
+    assert "false if the records confirm it" in system
 
 
 def _write(path: Path, records: list[dict]) -> None:

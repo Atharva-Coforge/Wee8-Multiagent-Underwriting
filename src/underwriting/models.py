@@ -144,6 +144,7 @@ class Recommendation(BaseModel):
     conditions: list[str] = Field(default_factory=list)
     override: bool = False
     model_decision: RecommendationDecision | None = None
+    model_rationale: str | None = None
 
 
 class TokenUsage(BaseModel):
@@ -174,10 +175,16 @@ class Trace(BaseModel):
 
 
 class PipelineResult(BaseModel):
-    """Final outcome. Escalated and rejected cases have no recommendation."""
+    """Final outcome. Escalated and rejected cases have no recommendation.
+
+    ``agents`` is each call's usage, llm_calls, duration, and output for the runner.
+    ``trace`` stays empty until the tracing step.
+    """
 
     status: PipelineStatus
     decision: Decision
     rationale: str
     case_id: str
     trace: Trace | None = None
+    agents: list[Any] = Field(default_factory=list)
+    total_duration_ms: float = 0.0
