@@ -51,7 +51,7 @@ class OllamaAdapter:
                 ],
                 think=False,
                 format="json",
-                options={"temperature": 0.1},
+                options={"temperature": 0},
             )
         except httpx.TimeoutException as exc:
             raise LLMTimeoutError(str(exc)) from exc
