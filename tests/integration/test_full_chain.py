@@ -50,6 +50,23 @@ def _intake(
     }
 
 
+def _discrepancy_item(flag: str) -> dict[str, object]:
+    """Turn one old flag sentence into a structured contradiction.
+
+    ``applicant_said`` is the quote after ``applicant claims ``, which is the
+    text ``_kept_flags`` looks for inside ``applicant_claims``.
+    """
+    prefix = "applicant claims "
+    said, separator, shows = flag.partition("; ")
+    if separator and said.startswith(prefix):
+        said = said[len(prefix) :]
+    return {
+        "applicant_said": said,
+        "record_shows": shows if separator else flag,
+        "contradicts": True,
+    }
+
+
 def _enrichment(
     *,
     claims_band: str = "low",
@@ -59,12 +76,13 @@ def _enrichment(
     discrepancy_flags: list[str] | None = None,
     summary: str = "No at-fault accidents and no violations.",
 ) -> dict[str, object]:
+    flags = [] if discrepancy_flags is None else discrepancy_flags
     return {
         "claims_band": claims_band,
         "violation_severity": violation_severity,
         "vehicle_risk_band": vehicle_risk_band,
         "prior_insurance_band": prior_insurance_band,
-        "discrepancy_flags": [] if discrepancy_flags is None else discrepancy_flags,
+        "discrepancies": [_discrepancy_item(flag) for flag in flags],
         "summary": summary,
     }
 

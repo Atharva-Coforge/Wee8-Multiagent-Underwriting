@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from underwriting.agents._llm_json import call_json, usage_from
 from underwriting.agents.errors import AgentEscalation
@@ -98,32 +98,6 @@ class _EnrichmentExtraction(BaseModel):
     prior_insurance_band: Band
     discrepancies: list[_Discrepancy] = Field(default_factory=list)
     summary: str
-
-    @model_validator(mode="before")
-    @classmethod
-    def _accept_legacy_flags(cls, data: object) -> object:
-        """Map a sentence list onto structured items when `discrepancies` is absent."""
-        if not isinstance(data, dict) or "discrepancies" in data:
-            return data
-        legacy = data.get("discrepancy_flags")
-        if not isinstance(legacy, list):
-            return data
-        items: list[dict[str, object]] = []
-        prefix = "applicant claims "
-        for flag in legacy:
-            if not isinstance(flag, str):
-                continue
-            said, separator, shows = flag.partition("; ")
-            if separator and said.startswith(prefix):
-                said = said[len(prefix) :]
-            items.append(
-                {
-                    "applicant_said": said,
-                    "record_shows": shows if separator else flag,
-                    "contradicts": True,
-                }
-            )
-        return {**data, "discrepancies": items}
 
 
 def _kept_flags(discrepancies: list[_Discrepancy], applicant_claims: str) -> list[str]:

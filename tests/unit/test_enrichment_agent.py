@@ -428,6 +428,25 @@ def test_quote_matches_across_case_and_whitespace():
     ]
 
 
+def test_legacy_discrepancy_flags_field_is_ignored():
+    intake = _intake(applicant_claims="no accidents")
+    reply = {
+        "claims_band": "moderate",
+        "violation_severity": "low",
+        "vehicle_risk_band": "low",
+        "prior_insurance_band": "low",
+        "discrepancy_flags": [
+            "applicant claims no accidents; driving history has 1 at-fault accident"
+        ],
+        "summary": "The old sentence list is not a discrepancy.",
+    }
+    llm = FakeLLMAdapter([reply])
+
+    result = enrichment_agent(intake, llm=llm)
+
+    assert result.output.discrepancy_flags == []
+
+
 def test_empty_applicant_claims_drop_every_contradiction():
     intake = _intake(
         case_id="robin_hale",
