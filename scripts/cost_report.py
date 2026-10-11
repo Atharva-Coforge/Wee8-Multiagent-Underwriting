@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from underwriting.cost import (
-    PLACEHOLDER_RATES,
+    HOSTED_RATES,
     HostedRate,
     case_totals,
     hosted_cost,
@@ -87,7 +87,7 @@ def render_report(trace_dir: Path) -> str:
     lines.append("Local cost: $0")
     lines.append("")
     lines.append("Hosted cost")
-    for name, rate in PLACEHOLDER_RATES.items():
+    for name, rate in HOSTED_RATES.items():
         lines.append(f"  {name}: {_format_hosted(prompt_avg, completion_avg, rate, has_cases=bool(totals))}")
     lines.append("")
 
