@@ -43,7 +43,7 @@ def test_complete_returns_text_and_token_counts():
     assert call["model"] == "qwen3.5:9b"
     assert call["think"] is False
     assert call["format"] == "json"
-    assert call["options"]["temperature"] == 0.1
+    assert call["options"]["temperature"] == 0
     assert call["messages"][0] == {"role": "system", "content": "system"}
     assert call["messages"][1] == {"role": "user", "content": "user"}
 
