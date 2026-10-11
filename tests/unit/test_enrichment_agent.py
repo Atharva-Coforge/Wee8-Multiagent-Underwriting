@@ -4,9 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
-
 from tests.fakes import FakeLLMAdapter
-from underwriting.agents.enrichment_agent import _Discrepancy, _kept_flags, enrichment_agent
+
+from underwriting.agents.enrichment_agent import (
+    _Discrepancy,
+    _kept_flags,
+    enrichment_agent,
+)
 from underwriting.agents.errors import AgentEscalation
 from underwriting.models import IntakeRecord, TokenUsage
 

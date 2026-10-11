@@ -3,8 +3,8 @@
 import json
 
 import pytest
-
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.llm_adapter import LLMAdapter, LLMResponse, LLMTimeoutError
 
 

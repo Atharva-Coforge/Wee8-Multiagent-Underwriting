@@ -3,7 +3,7 @@
 import time
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 
 from underwriting.llm_adapter import LLMTimeoutError
@@ -41,7 +41,7 @@ def retry_on_timeout(
     """
     delays = tuple(backoff_seconds)
     for number in range(1, max_attempts + 1):
-        started_at = datetime.now(timezone.utc).isoformat()
+        started_at = datetime.now(UTC).isoformat()
         started = time.perf_counter()
         try:
             value = call(number)

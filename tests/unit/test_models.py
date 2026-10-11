@@ -212,7 +212,7 @@ def test_escalated_and_rejected_results_need_no_recommendation():
         rationale="required information date of birth is missing",
         case_id="incomplete",
     )
-    escalated = PipelineResult(
+    _escalated = PipelineResult(
         status="escalated",
         decision="refer",
         rationale="required information vehicle model is missing",

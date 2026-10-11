@@ -8,13 +8,16 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "httpx>=0.28.1",
     "ollama",
     "pydantic",
 ]
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4.0",
     "pytest",
+    "ruff>=0.17.0",
 ]
 
 [build-system]
@@ -23,3 +26,17 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
+markers = ["live: needs a running local Ollama; skipped unless RUN_LIVE_OLLAMA=1"]
+
+[tool.ruff]
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+# PEP 695 rewrites and the bool-return fold are unsafe on this code.
+ignore = ["UP046", "UP047", "SIM103"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["underwriting"]

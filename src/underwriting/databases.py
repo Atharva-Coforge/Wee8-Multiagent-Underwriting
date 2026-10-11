@@ -3,7 +3,7 @@
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
@@ -14,7 +14,14 @@ from underwriting.models import (
     VehicleRecord,
 )
 
+
+class _PersonRow(Protocol):
+    full_name: str
+    date_of_birth: str
+
+
 T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R", bound=_PersonRow)
 
 _Record = DrivingHistoryRecord | VehicleRecord | PriorInsuranceRecord
 
@@ -84,7 +91,7 @@ def _load(path: Path, model: type[T]) -> list[T]:
     return [model.model_validate(row) for row in payload["records"]]
 
 
-def _pick(rows: list[T], name_key: str, dob_key: str, *, same_dob: bool) -> T | None:
+def _pick(rows: list[R], name_key: str, dob_key: str, *, same_dob: bool) -> R | None:
     for row in rows:
         if _normalize_name(row.full_name) != name_key:
             continue
