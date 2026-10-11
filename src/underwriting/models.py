@@ -10,7 +10,6 @@ RecommendationDecision = Literal["approve", "deny", "refer"]
 PipelineStatus = Literal["completed", "rejected", "escalated"]
 IntakeDecision = Literal["proceed", "reject", "escalate"]
 MatchStatus = Literal["full_match", "dob_mismatch", "not_found"]
-SpanStatus = Literal["ok", "error", "timeout", "escalated", "rejected"]
 
 _DATE = r"^\d{4}-\d{2}-\d{2}$"
 
@@ -153,38 +152,15 @@ class TokenUsage(BaseModel):
     total_tokens: int = 0
 
 
-class Span(BaseModel):
-    """One agent call. input and output are short summaries, not the nested message."""
-
-    agent: str
-    started_at: str
-    duration_ms: float
-    input: dict[str, Any]
-    output: dict[str, Any] | None = None
-    token_usage: TokenUsage
-    status: SpanStatus
-    attempt: int = 1
-    error: str | None = None
-    override: bool = False
-
-
-class Trace(BaseModel):
-    trace_id: str
-    case_id: str
-    spans: list[Span] = Field(default_factory=list)
-
-
 class PipelineResult(BaseModel):
     """Final outcome. Escalated and rejected cases have no recommendation.
 
     ``agents`` is each call's usage, llm_calls, duration, and output for the runner.
-    ``trace`` stays empty until the tracing step.
     """
 
     status: PipelineStatus
     decision: Decision
     rationale: str
     case_id: str
-    trace: Trace | None = None
     agents: list[Any] = Field(default_factory=list)
     total_duration_ms: float = 0.0

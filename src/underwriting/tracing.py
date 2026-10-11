@@ -1,8 +1,6 @@
 """Write one JSONL span per agent call.
 
-``models.Span`` is not the on-disk record. It nests token counts under
-``token_usage`` and has no ``llm_calls`` field. Each span here is a plain dict
-with flat token counts, and ``input`` / ``output`` are short summaries.
+Each span is a plain dict with flat token counts, and ``input`` / ``output`` are short summaries.
 """
 
 import json

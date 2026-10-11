@@ -219,8 +219,6 @@ def test_escalated_and_rejected_results_need_no_recommendation():
         case_id="missing_vehicle_model",
     )
 
-    assert rejected.trace is None
-    assert escalated.trace is None
     assert not hasattr(rejected, "recommendation")
     fields = set(Recommendation.model_fields)
     assert "assessment" in fields
