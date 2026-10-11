@@ -222,3 +222,6 @@ __marimo__/
 Assignment.txt
 
 HTMLS/
+
+# Per-case agent traces
+traces/

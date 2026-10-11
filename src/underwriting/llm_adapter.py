@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 DEFAULT_HOST = "http://localhost:11434"
 DEFAULT_MODEL = "qwen3.5:9b"
-DEFAULT_TIMEOUT_SECONDS = 120.0
+DEFAULT_TIMEOUT_SECONDS = 30.0
 
 
 class LLMResponse(BaseModel):
