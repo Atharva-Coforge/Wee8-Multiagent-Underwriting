@@ -72,9 +72,9 @@ Code sets the tier from the score with the ranges 0–29 low, 30–59 moderate, 
 
 The model decides approve, deny, or refer, using the seven rules in its prompt as guidance. Code guardrails only block an approve when there is a discrepancy flag or the tier is severe, and those cases become refer. An override triggers one extra model call for a rationale that matches the final decision, recorded as an override with the model's original decision and rationale. Conditions are kept only on approve: if that list is empty and data gaps are non-empty, one condition is added per gap in the form "resolve: <gap>". Deny and refer have no conditions. The model does the reasoning, and code enforces the lines that must never be crossed.
 
-Only risk scoring retries, and only on timeout. Three attempts, with a short backoff between them. Each attempt is its own span. If all three time out, status is `escalated`, decision is `refer`, and the reason names the timeout. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
+Only risk scoring retries, and only on timeout. A timeout in any other agent is not retried. It records one error span and escalates to refer. `MAX_ATTEMPTS` is 3. `BACKOFF_SECONDS` is `[1, 2]`: sleep 1 second after the first timeout and 2 seconds after the second. Tests pass a no-op sleep, so the suite does not wait. Each attempt is its own span with `attempt` 1, 2, or 3. A timed-out attempt has status `error`, `output` null, `error` set to the timeout message, and zero tokens unless that exception carries usage. If all three time out, `run_pipeline` returns status `escalated`, decision `refer`, and rationale `risk scoring timed out after 3 attempts; sent to human review`. That result has no score and no recommendation. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
 
-The client timeout defaults to 30 seconds, not 120. A warm local 9B call that is still running after 30 seconds is stuck. Three attempts at 120 seconds would hide that and would make the worst-case latency look like a batch job before the write-up measured it.
+The client timeout `DEFAULT_TIMEOUT_SECONDS` is 30 seconds, not 120. A warm local 9B call that is still running after 30 seconds is stuck. Three attempts at 120 seconds would hide that and would make the worst-case latency look like a batch job before the write-up measured it.
 
 ## Tracing and cost
 
@@ -83,6 +83,22 @@ One JSONL file per case: `traces/<case_id>.jsonl`. Each span has agent, attempt,
 `case_id` is `person_id` after a name-and-DOB match. Before a match, it is the text-file stem.
 
 Local Ollama charges $0 per token. The cost write-up still prices the measured token counts at one or two hosted models. Those rates stay placeholders until they are checked against the current pricing pages. Latency includes the worst case of three risk-scoring attempts plus backoff. The conclusion says whether that latency fits a real-time quote or an overnight batch.
+
+## Cost and latency
+
+`scripts/cost_report.py` reads `traces/<case_id>.jsonl`. Each span's `prompt_tokens` and `completion_tokens` are Ollama's `prompt_eval_count` and `eval_count`. A completed case has four spans and every status is `ok`. The averages use only those cases. Every other file is listed and left out.
+
+<!-- paste cost_report output here -->
+
+Local Ollama is $0 per token. Hosted prices stay unset on purpose. `PLACEHOLDER_RATES` in `src/underwriting/cost.py` names `hosted_model_A` and `hosted_model_B`, and both values are `None` until the input and output USD per 1M tokens are copied from that provider's current price page. `hosted_cost` is `(prompt_tokens / 1_000_000) * input + (completion_tokens / 1_000_000) * output`. A `None` rate prints "rate not set".
+
+Worst-case latency, in milliseconds, is the normal case duration plus three client timeouts plus the backoff:
+
+`normal_case_ms + timeouts * timeout_s * 1000 + backoff_s * 1000`
+
+`timeouts` is 3 and `timeout_s` is 30 (`DEFAULT_TIMEOUT_SECONDS` in `src/underwriting/llm_adapter.py`). `backoff_s` is 3, the sum of `[1, 2]`. That sum is the path where risk scoring times out three times and the case escalates.
+
+About 30 to 45 seconds per case on a local 9B model, plus 93 seconds when the three 30-second timeouts and the 3-second backoff fire, is too slow for a live quote. It fits batch processing, including an overnight batch, or an asynchronous "decision by email" flow. A faster hosted model, running intake and the database lookups in parallel, or caching repeated lookups is what would make a live quote realistic.
 
 ## Build plan
 

@@ -1,4 +1,8 @@
-"""Four agents in order. Retries come later."""
+"""Four agents in order. Risk scoring retries on timeout, then escalates.
+
+Intake, enrichment, and recommendation do not retry. One timeout there is
+recorded and the case is referred.
+"""
 
 import time
 from collections.abc import Callable
@@ -14,8 +18,9 @@ from underwriting.agents.intake_agent import intake_agent
 from underwriting.agents.recommendation_agent import recommendation_agent
 from underwriting.agents.result import AgentResult
 from underwriting.agents.risk_scoring_agent import risk_scoring_agent
-from underwriting.llm_adapter import LLMAdapter
+from underwriting.llm_adapter import LLMAdapter, LLMTimeoutError
 from underwriting.models import Decision, PipelineResult, PipelineStatus, TokenUsage
+from underwriting.pipeline.retry import MAX_ATTEMPTS, Attempt, retry_on_timeout
 from underwriting.tracing import (
     TraceStatus,
     Tracer,
@@ -33,9 +38,18 @@ from underwriting.tracing import (
 SummarizeOutput = Callable[[Any], dict[str, Any]]
 
 
+_RISK_TIMEOUT_RATIONALE = (
+    f"risk scoring timed out after {MAX_ATTEMPTS} attempts; sent to human review"
+)
+
+
 @dataclass
 class AgentRun:
-    """One agent the chain called. ``output`` is its message, or the stop record."""
+    """One agent call. ``output`` is its message, or the stop record.
+
+    ``attempt`` is 1 except when risk scoring is tried again. ``error`` is the
+    timeout message when that attempt failed.
+    """
 
     agent: str
     usage: TokenUsage
@@ -43,6 +57,8 @@ class AgentRun:
     duration_ms: float
     output: object | None = None
     stopped: bool = False
+    attempt: int = 1
+    error: str | None = None
 
 
 def run_pipeline(
@@ -51,6 +67,7 @@ def run_pipeline(
     case_id: str,
     llm: LLMAdapter,
     trace_dir: Path | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> PipelineResult:
     """Run intake, then enrichment, risk scoring, and recommendation.
 
@@ -61,14 +78,18 @@ def run_pipeline(
 
     ``PipelineResult`` has no path field, so the path is not stored on the result.
 
-    ``LLMTimeoutError`` propagates.
-    TODO: retry risk scoring on LLMTimeoutError, then escalate. Do not catch it here.
+    Risk scoring retries ``LLMTimeoutError`` up to three times. ``sleep`` waits
+    between those attempts. If every attempt times out, the result is
+    ``escalated`` / ``refer`` with no score, and recommendation is not called.
+
+    A timeout from intake, enrichment, or recommendation is not retried. That
+    agent records one error span and the result is ``escalated`` / ``refer``.
     """
     started = time.perf_counter()
     agents: list[AgentRun] = []
     tracer = Tracer(case_id) if trace_dir is None else Tracer(case_id, trace_dir)
     try:
-        intake = _invoke(
+        intake = _invoke_once(
             "intake",
             lambda: intake_agent(raw_text, case_id=case_id, llm=llm),
             agents,
@@ -76,7 +97,7 @@ def run_pipeline(
             input_summary=summarize_intake_input(raw_text),
             summarize_output=summarize_intake_output,
         )
-        enriched = _invoke(
+        enriched = _invoke_once(
             "enrichment",
             lambda: enrichment_agent(intake.output, llm=llm),
             agents,
@@ -84,22 +105,56 @@ def run_pipeline(
             input_summary=summarize_enrichment_input(intake.output),
             summarize_output=summarize_enrichment_output,
         )
-        # TODO: retry this call on LLMTimeoutError (three attempts, then escalate).
-        assessment = _invoke(
-            "risk_scoring",
-            lambda: risk_scoring_agent(enriched.output, llm=llm),
-            agents,
-            tracer,
-            input_summary=summarize_risk_input(enriched.output),
-            summarize_output=summarize_risk_output,
-        )
-        recommendation = _invoke(
+        risk_input = summarize_risk_input(enriched.output)
+
+        def _risk_call(attempt: int) -> AgentResult:
+            return _invoke(
+                "risk_scoring",
+                lambda: risk_scoring_agent(enriched.output, llm=llm),
+                agents,
+                tracer,
+                input_summary=risk_input,
+                summarize_output=summarize_risk_output,
+                attempt=attempt,
+            )
+
+        assessment: AgentResult | None = None
+        for attempt in retry_on_timeout(_risk_call, sleep=sleep):
+            if attempt.error is not None:
+                _record_timeout(
+                    agents,
+                    tracer,
+                    agent="risk_scoring",
+                    attempt=attempt,
+                    input_summary=risk_input,
+                )
+                continue
+            assessment = attempt.value
+        if assessment is None:
+            return _finish(
+                status="escalated",
+                decision="refer",
+                rationale=_RISK_TIMEOUT_RATIONALE,
+                case_id=case_id,
+                agents=agents,
+                started=started,
+            )
+        recommendation = _invoke_once(
             "recommendation",
             lambda: recommendation_agent(assessment.output, llm=llm),
             agents,
             tracer,
             input_summary=summarize_recommendation_input(assessment.output),
             summarize_output=summarize_recommendation_output,
+        )
+    except _TimeoutEscalation as exc:
+        return _finish(
+            status="escalated",
+            decision="refer",
+            rationale=f"{exc.agent} timed out; sent to human review",
+            case_id=case_id,
+            agents=agents,
+            started=started,
         )
     except AgentEscalation as exc:
         return _finish(
@@ -133,7 +188,15 @@ def run_pipeline(
     )
 
 
-def _invoke(
+class _TimeoutEscalation(Exception):
+    """Intake, enrichment, or recommendation timed out. Not used for risk scoring."""
+
+    def __init__(self, agent: str) -> None:
+        self.agent = agent
+        super().__init__(f"{agent} timed out")
+
+
+def _invoke_once(
     agent: str,
     call,
     agents: list[AgentRun],
@@ -142,9 +205,52 @@ def _invoke(
     input_summary: dict[str, Any],
     summarize_output: SummarizeOutput,
 ) -> AgentResult:
+    """Call one agent a single time. A timeout is recorded and escalated.
+
+    Risk scoring does not use this. Its ``LLMTimeoutError`` must reach
+    ``retry_on_timeout`` uncaught.
+    """
+    started_at = datetime.now(timezone.utc).isoformat()
+    started = time.perf_counter()
+    try:
+        return _invoke(
+            agent,
+            call,
+            agents,
+            tracer,
+            input_summary=input_summary,
+            summarize_output=summarize_output,
+        )
+    except LLMTimeoutError as exc:
+        _record_timeout(
+            agents,
+            tracer,
+            agent=agent,
+            attempt=Attempt(
+                attempt=1,
+                started_at=started_at,
+                duration_ms=_elapsed_ms(started),
+                error=exc,
+            ),
+            input_summary=input_summary,
+        )
+        raise _TimeoutEscalation(agent) from exc
+
+
+def _invoke(
+    agent: str,
+    call,
+    agents: list[AgentRun],
+    tracer: Tracer,
+    *,
+    input_summary: dict[str, Any],
+    summarize_output: SummarizeOutput,
+    attempt: int = 1,
+) -> AgentResult:
     """Time one agent and record its span. A stop is recorded, then re-raised.
 
-    TODO: LLMTimeoutError is not caught. The retry step will handle it.
+    ``LLMTimeoutError`` is not recorded here. Risk scoring's retry records each
+    timed-out attempt. ``_invoke_once`` records one timeout for the other agents.
     """
     started_at = datetime.now(timezone.utc).isoformat()
     started = time.perf_counter()
@@ -161,6 +267,7 @@ def _invoke(
                 duration_ms=duration_ms,
                 output=exc.record,
                 stopped=True,
+                attempt=attempt,
             )
         )
         _record(
@@ -175,6 +282,7 @@ def _invoke(
             output_summary=summarize_stop(exc),
             override=_override(exc.record),
             error=None,
+            attempt=attempt,
         )
         raise
     except AgentParseError as exc:
@@ -188,6 +296,7 @@ def _invoke(
                 duration_ms=duration_ms,
                 output=None,
                 stopped=True,
+                attempt=attempt,
             )
         )
         _record(
@@ -202,6 +311,7 @@ def _invoke(
             output_summary=None,
             override=False,
             error=str(exc),
+            attempt=attempt,
         )
         raise
     usage = result.usage
@@ -213,6 +323,7 @@ def _invoke(
             llm_calls=result.llm_calls,
             duration_ms=duration_ms,
             output=result.output,
+            attempt=attempt,
         )
     )
     _record(
@@ -227,8 +338,57 @@ def _invoke(
         output_summary=summarize_output(result.output),
         override=_override(result.output),
         error=None,
+        attempt=attempt,
     )
     return result
+
+
+def _record_timeout(
+    agents: list[AgentRun],
+    tracer: Tracer,
+    *,
+    agent: str,
+    attempt: Attempt[AgentResult],
+    input_summary: dict[str, Any],
+) -> None:
+    """Record one timed-out attempt. No output is stored."""
+    error = attempt.error
+    assert error is not None
+    usage, llm_calls = _usage_from_timeout(error)
+    agents.append(
+        AgentRun(
+            agent=agent,
+            usage=usage,
+            llm_calls=llm_calls,
+            duration_ms=attempt.duration_ms,
+            output=None,
+            attempt=attempt.attempt,
+            error=str(error),
+        )
+    )
+    _record(
+        tracer,
+        agent=agent,
+        started_at=attempt.started_at,
+        duration_ms=attempt.duration_ms,
+        usage=usage,
+        llm_calls=llm_calls,
+        status="error",
+        input_summary=input_summary,
+        output_summary=None,
+        override=False,
+        error=str(error),
+        attempt=attempt.attempt,
+    )
+
+
+def _usage_from_timeout(exc: LLMTimeoutError) -> tuple[TokenUsage, int]:
+    """Zero tokens, unless ``exc`` carries a ``TokenUsage``."""
+    raw = getattr(exc, "usage", None)
+    if isinstance(raw, TokenUsage):
+        calls = getattr(exc, "llm_calls", 0)
+        return raw, calls if isinstance(calls, int) else 0
+    return TokenUsage(), 0
 
 
 def _record(
@@ -244,6 +404,7 @@ def _record(
     output_summary: dict[str, Any] | None,
     override: bool,
     error: str | None,
+    attempt: int = 1,
 ) -> None:
     tracer.record(
         agent=agent,
@@ -258,6 +419,7 @@ def _record(
         output=output_summary,
         override=override,
         error=error,
+        attempt=attempt,
     )
 
 

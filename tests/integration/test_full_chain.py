@@ -3,11 +3,15 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from tests.fakes import FakeLLMAdapter
 from underwriting.llm_adapter import LLMTimeoutError
-from underwriting.models import EnrichedCase, IntakeRecord, Recommendation, RiskAssessment
+from underwriting.models import (
+    EnrichedCase,
+    IntakeRecord,
+    Recommendation,
+    RiskAssessment,
+    TokenUsage,
+)
 from underwriting.pipeline.chain import run_pipeline
 
 _APPLICATIONS = Path(__file__).resolve().parents[2] / "data" / "applications"
@@ -278,13 +282,308 @@ def test_parse_failure_escalates_without_raising(tmp_path: Path):
     assert result.agents[0].llm_calls == 2
 
 
-def test_timeout_propagates(tmp_path: Path):
-    llm = FakeLLMAdapter.timeouts_then(1)
+def _timeouts(n: int) -> list[LLMTimeoutError]:
+    return [LLMTimeoutError("timed out") for _ in range(n)]
 
-    with pytest.raises(LLMTimeoutError):
-        run_pipeline(
-            _text("maria_ortiz.txt"),
-            case_id="maria_ortiz",
-            llm=llm,
-            trace_dir=tmp_path,
+
+def _no_sleep(delays: list[float]):
+    def sleep(seconds: float) -> None:
+        delays.append(seconds)
+
+    return sleep
+
+
+def _spans(tmp_path: Path, case_id: str) -> list[dict]:
+    path = tmp_path / f"{case_id}.jsonl"
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def _denise_script(timeouts: int, then: list[dict] | None = None) -> list:
+    replies: list = [
+        _intake(
+            "Denise Carol Whitfield",
+            "1977-08-03",
+            vehicle_year=2018,
+            vehicle_make="Toyota",
+            vehicle_model="Camry",
+            occupation="office manager",
+        ),
+        _enrichment(summary="One minor speeding violation and a not-at-fault hail claim."),
+        *_timeouts(timeouts),
+    ]
+    if then:
+        replies.extend(then)
+    return replies
+
+
+def test_risk_scoring_recovers_after_two_timeouts(tmp_path: Path):
+    slept: list[float] = []
+    llm = FakeLLMAdapter(
+        _denise_script(
+            2,
+            [
+                _risk(18),
+                _recommendation(),
+            ],
         )
+    )
+
+    result = run_pipeline(
+        _text("timeout_case.txt"),
+        case_id="timeout_case",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep(slept),
+    )
+
+    assert result.status == "completed"
+    assert result.decision == "approve"
+    assert result.rationale == "A score of 18 is a low tier."
+    assert [step.agent for step in result.agents] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "risk_scoring",
+        "risk_scoring",
+        "recommendation",
+    ]
+    risk_steps = [step for step in result.agents if step.agent == "risk_scoring"]
+    assert [step.attempt for step in risk_steps] == [1, 2, 3]
+    assert risk_steps[0].error == "timed out"
+    assert risk_steps[1].error == "timed out"
+    assert risk_steps[0].output is None
+    assert risk_steps[1].output is None
+    assert risk_steps[0].usage.total_tokens == 0
+    assert isinstance(risk_steps[2].output, RiskAssessment)
+    assert risk_steps[2].output.score == 18
+    assert risk_steps[2].error is None
+    assert isinstance(result.agents[-1].output, Recommendation)
+    assert llm.call_count == 6
+    assert slept == [1, 2]
+
+    spans = _spans(tmp_path, "timeout_case")
+    assert [span["agent"] for span in spans] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "risk_scoring",
+        "risk_scoring",
+        "recommendation",
+    ]
+    risk_spans = [span for span in spans if span["agent"] == "risk_scoring"]
+    assert [span["attempt"] for span in risk_spans] == [1, 2, 3]
+    assert [span["status"] for span in risk_spans] == ["error", "error", "ok"]
+    assert risk_spans[0]["output"] is None
+    assert risk_spans[1]["output"] is None
+    assert risk_spans[0]["error"] == "timed out"
+    assert risk_spans[1]["error"] == "timed out"
+    assert risk_spans[0]["prompt_tokens"] == 0
+    assert risk_spans[0]["completion_tokens"] == 0
+    assert risk_spans[0]["total_tokens"] == 0
+    assert risk_spans[2]["error"] is None
+    assert risk_spans[2]["output"]["score"] == 18
+    assert spans[-1]["agent"] == "recommendation"
+    assert spans[-1]["status"] == "ok"
+
+
+def test_risk_scoring_escalates_after_three_timeouts(tmp_path: Path):
+    slept: list[float] = []
+    llm = FakeLLMAdapter(_denise_script(3))
+
+    result = run_pipeline(
+        _text("timeout_case.txt"),
+        case_id="timeout_case",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep(slept),
+    )
+
+    assert result.status == "escalated"
+    assert result.decision == "refer"
+    assert result.rationale == (
+        "risk scoring timed out after 3 attempts; sent to human review"
+    )
+    assert [step.agent for step in result.agents] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "risk_scoring",
+        "risk_scoring",
+    ]
+    for step in result.agents:
+        assert not isinstance(step.output, RiskAssessment)
+        assert not isinstance(step.output, Recommendation)
+        assert getattr(step.output, "score", None) is None
+    risk_steps = [step for step in result.agents if step.agent == "risk_scoring"]
+    assert [step.attempt for step in risk_steps] == [1, 2, 3]
+    assert all(step.output is None for step in risk_steps)
+    assert all(step.error == "timed out" for step in risk_steps)
+    assert all(step.usage.total_tokens == 0 for step in risk_steps)
+    assert llm.call_count == 5
+    assert slept == [1, 2]
+
+    spans = _spans(tmp_path, "timeout_case")
+    assert [span["agent"] for span in spans] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "risk_scoring",
+        "risk_scoring",
+    ]
+    assert [span["status"] for span in spans] == ["ok", "ok", "error", "error", "error"]
+    assert [span["attempt"] for span in spans] == [1, 1, 1, 2, 3]
+    assert "recommendation" not in [span["agent"] for span in spans]
+    for span in spans[2:]:
+        assert span["output"] is None
+        assert span["error"] == "timed out"
+        assert span["prompt_tokens"] == 0
+        assert span["completion_tokens"] == 0
+        assert span["total_tokens"] == 0
+    for span in spans:
+        output = span["output"]
+        if isinstance(output, dict):
+            assert "score" not in output
+
+
+def test_timeout_span_keeps_usage_carried_on_the_exception(tmp_path: Path):
+    carried = LLMTimeoutError("timed out")
+    carried.usage = TokenUsage(prompt_tokens=4, completion_tokens=1, total_tokens=5)
+    carried.llm_calls = 1
+    llm = FakeLLMAdapter(_denise_script(0) + [carried, *_timeouts(2)])
+
+    result = run_pipeline(
+        _text("timeout_case.txt"),
+        case_id="timeout_case",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep([]),
+    )
+
+    assert result.status == "escalated"
+    spans = [span for span in _spans(tmp_path, "timeout_case") if span["agent"] == "risk_scoring"]
+    assert spans[0]["prompt_tokens"] == 4
+    assert spans[0]["completion_tokens"] == 1
+    assert spans[0]["total_tokens"] == 5
+    assert spans[0]["llm_calls"] == 1
+    assert spans[0]["output"] is None
+    assert spans[1]["total_tokens"] == 0
+    assert spans[2]["total_tokens"] == 0
+    assert result.agents[2].usage.total_tokens == 5
+    assert result.agents[3].usage.total_tokens == 0
+
+
+def _maria_script(timeout_at: int) -> list:
+    """Maria's four replies, with one timeout in place of the agent at ``timeout_at``."""
+    replies: list = [
+        _intake(
+            "Maria Elena Ortiz",
+            "1984-05-12",
+            applicant_claims="insured continuously; no accidents or tickets",
+        ),
+        _enrichment(),
+        _risk(18),
+        _recommendation(),
+    ]
+    replies[timeout_at] = LLMTimeoutError("timed out")
+    return replies[: timeout_at + 1]
+
+
+def _assert_timeout_escalation(result, agent: str) -> None:
+    assert result.status == "escalated"
+    assert result.decision == "refer"
+    assert result.rationale == f"{agent} timed out; sent to human review"
+    step = result.agents[-1]
+    assert step.agent == agent
+    assert step.attempt == 1
+    assert step.output is None
+    assert step.error == "timed out"
+    assert step.usage.total_tokens == 0
+
+
+def _assert_error_span(span: dict, agent: str) -> None:
+    assert span["agent"] == agent
+    assert span["status"] == "error"
+    assert span["output"] is None
+    assert span["error"] == "timed out"
+    assert span["attempt"] == 1
+    assert span["prompt_tokens"] == 0
+    assert span["completion_tokens"] == 0
+    assert span["total_tokens"] == 0
+
+
+def test_intake_timeout_escalates_without_retry(tmp_path: Path):
+    slept: list[float] = []
+    llm = FakeLLMAdapter(_maria_script(0))
+
+    result = run_pipeline(
+        _text("maria_ortiz.txt"),
+        case_id="intake_timeout",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep(slept),
+    )
+
+    _assert_timeout_escalation(result, "intake")
+    assert [step.agent for step in result.agents] == ["intake"]
+    assert llm.call_count == 1
+    assert slept == []
+    spans = _spans(tmp_path, "intake_timeout")
+    assert [span["agent"] for span in spans] == ["intake"]
+    _assert_error_span(spans[-1], "intake")
+
+
+def test_enrichment_timeout_escalates_without_retry(tmp_path: Path):
+    slept: list[float] = []
+    llm = FakeLLMAdapter(_maria_script(1))
+
+    result = run_pipeline(
+        _text("maria_ortiz.txt"),
+        case_id="enrichment_timeout",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep(slept),
+    )
+
+    _assert_timeout_escalation(result, "enrichment")
+    assert [step.agent for step in result.agents] == ["intake", "enrichment"]
+    assert llm.call_count == 2
+    assert slept == []
+    spans = _spans(tmp_path, "enrichment_timeout")
+    assert [span["agent"] for span in spans] == ["intake", "enrichment"]
+    assert spans[0]["status"] == "ok"
+    _assert_error_span(spans[-1], "enrichment")
+    assert "risk_scoring" not in [span["agent"] for span in spans]
+    assert "recommendation" not in [span["agent"] for span in spans]
+
+
+def test_recommendation_timeout_escalates_without_retry(tmp_path: Path):
+    slept: list[float] = []
+    llm = FakeLLMAdapter(_maria_script(3))
+
+    result = run_pipeline(
+        _text("maria_ortiz.txt"),
+        case_id="recommendation_timeout",
+        llm=llm,
+        trace_dir=tmp_path,
+        sleep=_no_sleep(slept),
+    )
+
+    _assert_timeout_escalation(result, "recommendation")
+    assert [step.agent for step in result.agents] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "recommendation",
+    ]
+    assert result.agents[-1].output is None
+    assert llm.call_count == 4
+    assert slept == []
+    spans = _spans(tmp_path, "recommendation_timeout")
+    assert [span["agent"] for span in spans] == [
+        "intake",
+        "enrichment",
+        "risk_scoring",
+        "recommendation",
+    ]
+    assert [span["status"] for span in spans[:3]] == ["ok", "ok", "ok"]
+    _assert_error_span(spans[-1], "recommendation")

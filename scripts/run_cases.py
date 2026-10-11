@@ -4,13 +4,14 @@ Usage:
     uv run python scripts/run_cases.py maria_ortiz
     uv run python scripts/run_cases.py maria_ortiz tyler_brandt
     uv run python scripts/run_cases.py --all
+    uv run python scripts/run_cases.py --inject-timeout 3 timeout_case
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from underwriting.llm_adapter import OllamaAdapter
+from underwriting.llm_adapter import LLMAdapter, LLMResponse, LLMTimeoutError, OllamaAdapter
 from underwriting.models import (
     EnrichedCase,
     IntakeRecord,
@@ -23,6 +24,25 @@ from underwriting.pipeline.chain import AgentRun, run_pipeline
 _ROOT = Path(__file__).resolve().parents[1]
 _APPLICATIONS = _ROOT / "data" / "applications"
 _OLLAMA_HOST = "http://host.docker.internal:11434"
+_RISK_SYSTEM_PREFIX = "Score 0 to 100"
+
+
+class _RiskScoringTimeouts:
+    """Raise ``LLMTimeoutError`` on the first N risk-scoring completions.
+
+    Later risk-scoring calls, and every other agent, use the wrapped adapter.
+    The risk-scoring prompt is the only one that starts with ``Score 0 to 100``.
+    """
+
+    def __init__(self, inner: OllamaAdapter, times: int) -> None:
+        self._inner = inner
+        self._remaining = times
+
+    def complete(self, *, system: str, user: str) -> LLMResponse:
+        if self._remaining > 0 and system.startswith(_RISK_SYSTEM_PREFIX):
+            self._remaining -= 1
+            raise LLMTimeoutError("risk scoring timed out")
+        return self._inner.complete(system=system, user=user)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,14 +61,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--inject-timeout",
-        action="store_true",
-        help="Force a risk-scoring timeout (not implemented yet)",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Raise LLMTimeoutError on the first N risk-scoring calls, then call Ollama",
     )
     args = parser.parse_args(argv)
 
-    if args.inject_timeout:
-        # TODO: retry step. Inject LLMTimeoutError on risk scoring and let the chain retry.
-        print("--inject-timeout is not implemented yet.", file=sys.stderr)
+    if args.inject_timeout < 0:
+        print("--inject-timeout must be 0 or greater.", file=sys.stderr)
         return 2
 
     available = _available_names()
@@ -71,7 +92,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    llm = OllamaAdapter(host=_OLLAMA_HOST)
+    llm: LLMAdapter = OllamaAdapter(host=_OLLAMA_HOST)
+    if args.inject_timeout:
+        llm = _RiskScoringTimeouts(llm, args.inject_timeout)
     for name in names:
         raw_text = (_APPLICATIONS / f"{name}.txt").read_text()
         result = run_pipeline(raw_text, case_id=name, llm=llm)
@@ -90,6 +113,8 @@ def _print_result(result: PipelineResult) -> None:
     stopped = next((step for step in result.agents if step.stopped), None)
     if stopped is not None:
         print(f"  stopped at {stopped.agent}: {result.rationale}")
+    elif result.status == "escalated":
+        print(f"  escalated: {result.rationale}")
     print(
         f"  status {result.status}  decision {result.decision}  "
         f"total {_format_duration(result.total_duration_ms)}"
@@ -100,6 +125,11 @@ def _print_result(result: PipelineResult) -> None:
 
 def _format_step(step: AgentRun) -> str:
     tail = f"{step.usage.total_tokens} tokens  {_format_duration(step.duration_ms)}"
+    if step.error is not None:
+        return (
+            f"  {step.agent}: attempt {step.attempt}  "
+            f"error: {step.error}  |  {tail}"
+        )
     output = step.output
     if isinstance(output, IntakeRecord):
         return f"  intake: decision {output.decision}  |  {tail}"
@@ -115,7 +145,10 @@ def _format_step(step: AgentRun) -> str:
             f"flags {flags}  |  gaps {gaps}  |  {tail}"
         )
     if isinstance(output, RiskAssessment):
-        return f"  risk_scoring: score {output.score}  tier {output.tier}  |  {tail}"
+        return (
+            f"  risk_scoring: attempt {step.attempt}  "
+            f"score {output.score}  tier {output.tier}  |  {tail}"
+        )
     if isinstance(output, Recommendation):
         conditions = ", ".join(output.conditions) or "none"
         return (
