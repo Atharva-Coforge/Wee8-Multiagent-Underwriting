@@ -269,6 +269,7 @@ name = "underwriting"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "ollama" },
     { name = "pydantic" },
 ]
@@ -280,6 +281,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "ollama" },
     { name = "pydantic" },
 ]
