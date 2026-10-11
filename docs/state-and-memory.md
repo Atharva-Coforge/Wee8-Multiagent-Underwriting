@@ -10,8 +10,6 @@ The model sees only the slice that step needs. A span logs a short summary of in
 
 Real calls use local Ollama, model `qwen3.5:9b` (`OLLAMA_HOST`, `OLLAMA_MODEL`). Tests use a fake adapter and do not start Ollama.
 
-This is not the layout in `HTMLS/v2.html`. That sketch uses one flat case envelope and more than one model provider. This pipeline uses nested messages, one local model, and plain Python.
-
 Each agent prompt includes field priorities and three fictional few-shot examples (clean, messy, risky).
 
 ## Inputs

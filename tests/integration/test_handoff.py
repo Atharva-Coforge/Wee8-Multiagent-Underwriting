@@ -41,7 +41,7 @@ def test_enrichment_receives_the_intake_output(monkeypatch, tmp_path: Path):
                 "violation_severity": "low",
                 "vehicle_risk_band": "low",
                 "prior_insurance_band": "low",
-                "discrepancy_flags": [],
+                "discrepancies": [],
                 "summary": "No at-fault accidents and no violations.",
             },
             {
@@ -97,7 +97,7 @@ def test_maria_trace_records_intake_then_enrichment(tmp_path: Path):
                 "violation_severity": "low",
                 "vehicle_risk_band": "low",
                 "prior_insurance_band": "low",
-                "discrepancy_flags": [],
+                "discrepancies": [],
                 "summary": "No at-fault accidents and no violations.",
             },
             {
