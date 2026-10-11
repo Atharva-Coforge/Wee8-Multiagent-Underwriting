@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 
 from underwriting.cost import (
-    HostedRate,
     PLACEHOLDER_RATES,
+    HostedRate,
     case_totals,
     hosted_cost,
     is_completed,

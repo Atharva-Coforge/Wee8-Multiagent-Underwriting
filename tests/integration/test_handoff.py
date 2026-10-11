@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.agents.enrichment_agent import enrichment_agent
 from underwriting.models import EnrichedCase, IntakeRecord
 from underwriting.pipeline.chain import run_pipeline

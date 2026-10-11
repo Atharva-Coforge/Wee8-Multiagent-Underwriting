@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import pytest
-
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.agents.recommendation_agent import recommendation_agent
 from underwriting.models import (
     EnrichedCase,

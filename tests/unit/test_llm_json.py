@@ -4,8 +4,8 @@ import json
 
 import pytest
 from pydantic import BaseModel
-
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.agents._llm_json import AgentParseError, call_json, usage_from
 from underwriting.llm_adapter import LLMResponse, LLMTimeoutError
 from underwriting.models import TokenUsage

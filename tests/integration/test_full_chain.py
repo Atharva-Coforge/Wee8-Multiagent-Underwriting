@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.llm_adapter import LLMTimeoutError
 from underwriting.models import (
     EnrichedCase,

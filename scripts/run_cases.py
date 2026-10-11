@@ -11,7 +11,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from underwriting.llm_adapter import LLMAdapter, LLMResponse, LLMTimeoutError, OllamaAdapter
+from underwriting.llm_adapter import (
+    LLMAdapter,
+    LLMResponse,
+    LLMTimeoutError,
+    OllamaAdapter,
+)
 from underwriting.models import (
     EnrichedCase,
     IntakeRecord,

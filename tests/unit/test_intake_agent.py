@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
-
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.agents.enrichment_agent import _SYSTEM as enrichment_system
 from underwriting.agents.errors import AgentEscalation
 from underwriting.agents.intake_agent import _SYSTEM as intake_system

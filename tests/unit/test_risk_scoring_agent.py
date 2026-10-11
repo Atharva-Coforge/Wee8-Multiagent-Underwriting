@@ -1,8 +1,8 @@
 """Risk-scoring agent against a scripted fake. No Ollama."""
 
 import pytest
-
 from tests.fakes import FakeLLMAdapter
+
 from underwriting.agents.risk_scoring_agent import risk_scoring_agent
 from underwriting.models import (
     EnrichedCase,

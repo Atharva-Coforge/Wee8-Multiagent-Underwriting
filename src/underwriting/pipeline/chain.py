@@ -7,7 +7,7 @@ recorded and the case is referred.
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +22,8 @@ from underwriting.llm_adapter import LLMAdapter, LLMTimeoutError
 from underwriting.models import Decision, PipelineResult, PipelineStatus, TokenUsage
 from underwriting.pipeline.retry import MAX_ATTEMPTS, Attempt, retry_on_timeout
 from underwriting.tracing import (
-    TraceStatus,
     Tracer,
+    TraceStatus,
     summarize_enrichment_input,
     summarize_enrichment_output,
     summarize_intake_input,
@@ -210,7 +210,7 @@ def _invoke_once(
     Risk scoring does not use this. Its ``LLMTimeoutError`` must reach
     ``retry_on_timeout`` uncaught.
     """
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
     started = time.perf_counter()
     try:
         return _invoke(
@@ -252,7 +252,7 @@ def _invoke(
     ``LLMTimeoutError`` is not recorded here. Risk scoring's retry records each
     timed-out attempt. ``_invoke_once`` records one timeout for the other agents.
     """
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
     started = time.perf_counter()
     try:
         result = call()

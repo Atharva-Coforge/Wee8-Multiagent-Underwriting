@@ -35,7 +35,7 @@ class OllamaAdapter:
         timeout: float | None = None,
         client: Any = None,
     ) -> None:
-        self.model = model or os.getenv("OLLAMA_MODEL", DEFAULT_MODEL)
+        self.model: str = model or os.getenv("OLLAMA_MODEL") or DEFAULT_MODEL
         self._client = client or Client(
             host=host or os.getenv("OLLAMA_HOST", DEFAULT_HOST),
             timeout=_timeout_seconds(timeout),
