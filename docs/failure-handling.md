@@ -1,0 +1,7 @@
+# Failure handling
+
+Only risk scoring retries, and only on timeout. A timeout in any other agent is not retried. It records one error span and escalates to refer. `MAX_ATTEMPTS` is 3. `BACKOFF_SECONDS` is `[1, 2]`: sleep 1 second after the first timeout and 2 seconds after the second. Tests pass a no-op sleep, so the suite does not wait. Each attempt is its own span with `attempt` 1, 2, or 3. A timed-out attempt has status `error`, `output` null, `error` set to the timeout message, and zero tokens unless that exception carries usage. If all three time out, `run_pipeline` returns status `escalated`, decision `refer`, and rationale `risk scoring timed out after 3 attempts; sent to human review`. That result has no score and no recommendation. The recommendation agent is not called. No score is invented, and the exception does not leave `run_pipeline`. A timeout does not also run a JSON repair.
+
+The client timeout `DEFAULT_TIMEOUT_SECONDS` is 30 seconds, not 120. A warm local 9B call that is still running after 30 seconds is stuck. Three attempts at 120 seconds would hide that and would make the worst-case latency look like a batch job before the write-up measured it.
+
+These paths are tested in `tests/integration/test_full_chain.py` (`test_risk_scoring_recovers_after_two_timeouts`, `test_risk_scoring_escalates_after_three_timeouts`, and the intake, enrichment, and recommendation timeout tests).

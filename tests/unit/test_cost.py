@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from underwriting.cost import (
-    PLACEHOLDER_RATES,
     case_totals,
     hosted_cost,
     load_spans,
@@ -108,9 +107,8 @@ def test_hosted_cost_uses_usd_per_million_tokens():
 
 
 def test_none_rate_reads_rate_not_set():
-    assert hosted_cost(2_000_000, 500_000, None) == "rate not set"
-    assert PLACEHOLDER_RATES["hosted_model_A"] is None
-    assert PLACEHOLDER_RATES["hosted_model_B"] is None
+    sample_rate = None
+    assert hosted_cost(2_000_000, 500_000, sample_rate) == "rate not set"
 
 
 def test_worst_case_is_normal_case_plus_timeouts_plus_backoff():

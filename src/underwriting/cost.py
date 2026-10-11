@@ -31,10 +31,10 @@ class HostedRate(TypedDict):
     output: float
 
 
-# Fill input and output USD per 1M tokens from the provider's current price page.
-PLACEHOLDER_RATES: dict[str, HostedRate | None] = {
-    "hosted_model_A": None,  # fill in from the provider's current price page
-    "hosted_model_B": None,  # fill in from the provider's current price page
+# USD per 1M tokens, from https://www.anthropic.com/pricing, checked 2026-10-11.
+HOSTED_RATES: dict[str, HostedRate | None] = {
+    "claude-haiku-4.5": {"input": 1.0, "output": 5.0},
+    "claude-sonnet-4.6": {"input": 3.0, "output": 15.0},
 }
 
 
