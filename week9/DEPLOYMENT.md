@@ -3,13 +3,13 @@
 One agent from the week 8 underwriting pipeline, the **risk scoring agent**, deployed two ways:
 
 - **AWS (simulated):** a container on ECS Fargate in us-east-1, calling **Gemma 3 27B on Amazon Bedrock**. It runs under a dedicated least-privilege IAM role, in private subnets that reach AWS only through VPC endpoints.
-- **On-prem (simulated):** the same agent calling **qwen3.5:9b on local Ollama**, so the model runs inside our own boundary.
+- **On-prem (deployed and run):** the same agent calling **qwen3.5:9b on local Ollama**, so the model runs inside our own boundary. This is the week 8 pipeline, `scripts/run_cases.py`, already running on-prem. The laptop stands in for a client's data center; the deployment and its results are real.
 
 > **Simulation note.** The instructor's update for this lab was: do not use any cloud service (AWS, Azure, or GCP); simulate it. The AWS deployment is therefore written as real configuration that was never run: IAM policies, network policies, the ECS task definition, and a deployment script. The on-prem deployment did run, as the week 8 pipeline on local Ollama, and its results are in `traces/`. Everything that needs a real AWS account to confirm is listed under [What was not verified](#what-was-not-verified).
 
 ### At a glance
 
-| | AWS (simulated) | On-prem (simulated) |
+| | AWS (simulated) | On-prem (deployed and run) |
 |---|---|---|
 | Model | Gemma 3 27B, run by AWS (Bedrock, us-east-1) | qwen3.5:9b, run by us (Ollama on our machine) |
 | Agent runs in | ECS Fargate task (ARM64), private subnets | Docker container on the Mac, Ollama on the host |
@@ -237,7 +237,7 @@ Two things need no extra configuration:
 - Add the same kind of condition to the execution role's ECR permissions.
 - Pin the base image by digest (`@sha256:...`) instead of by tag.
 
-## Part 2: On-prem deployment (simulated)
+## Part 2: On-prem deployment (deployed and run)
 
 **What runs.** The week 8 pipeline runs unchanged:
 
