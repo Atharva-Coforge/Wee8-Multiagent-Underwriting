@@ -7,7 +7,8 @@
       "Bash(uv run *)",
       "Bash(export UV_PROJECT_ENVIRONMENT=/private/tmp/claude-502/-Users-Atharva-C-Downloads-Development-Wee8-Multiagent-Underwriting/7206367f-3053-4277-91bd-e64452a13c2e/scratchpad/venv)",
       "Bash(OLLAMA_HOST=http://localhost:11434 uv run python week9/build_fixtures.py)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git rm *)"
     ]
   }
 }

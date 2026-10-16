@@ -15,7 +15,7 @@ from underwriting.llm_adapter import LLMResponse, LLMTimeoutError
 DEFAULT_REGION = "us-east-1"
 DEFAULT_MODEL_ID = "google.gemma-3-27b-it"
 DEFAULT_TIMEOUT_SECONDS = 30.0
-DEFAULT_MAX_TOKENS = 1024
+DEFAULT_MAX_TOKENS = 512
 CONNECT_TIMEOUT_SECONDS = 5.0
 
 
