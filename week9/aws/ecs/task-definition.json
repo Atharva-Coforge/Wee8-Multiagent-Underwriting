@@ -1,0 +1,43 @@
+{
+  "family": "risk-scoring-agent",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": {
+    "cpuArchitecture": "ARM64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/risk-agent-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/risk-agent-task-role",
+  "containerDefinitions": [
+    {
+      "name": "risk-scoring-agent",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/risk-scoring-agent:v1",
+      "essential": true,
+      "user": "10001",
+      "readonlyRootFilesystem": true,
+      "linuxParameters": {
+        "capabilities": {
+          "drop": ["ALL"]
+        }
+      },
+      "environment": [
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "BEDROCK_MODEL_ID", "value": "google.gemma-3-27b-it" },
+        { "name": "BEDROCK_TIMEOUT", "value": "30" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/risk-scoring-agent",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "risk"
+        }
+      }
+    }
+  ],
+  "tags": [
+    { "key": "Project", "value": "risk-scoring-agent" }
+  ]
+}

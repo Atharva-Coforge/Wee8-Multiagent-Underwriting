@@ -1,2 +1,12 @@
 # Build-context ignore file for week9/Dockerfile. BuildKit reads it in place of
 # a root .dockerignore, so the repo root stays untouched.
+# Ignore everything, then allow only what the image copies.
+*
+!pyproject.toml
+!uv.lock
+!src/underwriting
+!week9/__init__.py
+!week9/risk_agent
+!week9/fixtures
+**/__pycache__
+**/*.pyc
