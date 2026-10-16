@@ -1,0 +1,92 @@
+{
+  "intake": {
+    "case_id": "clean_claim_mismatch",
+    "raw_text": "My name is Priya N. Shah. I was born on July 19, 1994. I am a teacher and I want to insure my 2018 Subaru Outback. Please quote liability coverage of 100/300/100. I have a clean record, with no accidents and no tickets.",
+    "full_name": "Priya N. Shah",
+    "date_of_birth": "1994-07-19",
+    "vehicle_year": 2018,
+    "vehicle_make": "Subaru",
+    "vehicle_model": "Outback",
+    "coverage": "100/300/100",
+    "occupation": "teacher",
+    "missing_fields": [],
+    "decision": "proceed",
+    "reason": "all required fields are present",
+    "model_decision": null,
+    "override": false,
+    "applicant_claims": "I have a clean record, with no accidents and no tickets."
+  },
+  "lookup": {
+    "match_status": "full_match",
+    "person_id": "P-1003",
+    "driving_history": {
+      "person_id": "P-1003",
+      "full_name": "Priya N. Shah",
+      "date_of_birth": "1994-07-19",
+      "accidents": [
+        {
+          "date": "2025-11-02",
+          "at_fault": true,
+          "description": "Ran a red light and struck a turning vehicle.",
+          "bodily_injury": false,
+          "amount_paid_usd": 6400
+        }
+      ],
+      "violations": [
+        {
+          "date": "2025-11-02",
+          "type": "red_light",
+          "description": "Citation from the same crash."
+        }
+      ],
+      "claims": [
+        {
+          "date": "2025-11-02",
+          "type": "collision",
+          "at_fault": true,
+          "description": "Collision claim for the red-light crash with a turning vehicle.",
+          "bodily_injury": false,
+          "amount_paid_usd": 6400
+        }
+      ]
+    },
+    "vehicles": {
+      "person_id": "P-1003",
+      "full_name": "Priya N. Shah",
+      "date_of_birth": "1994-07-19",
+      "vehicles": [
+        {
+          "year": 2018,
+          "make": "Subaru",
+          "model": "Outback",
+          "currently_insured": true
+        }
+      ]
+    },
+    "prior_insurance": {
+      "person_id": "P-1003",
+      "full_name": "Priya N. Shah",
+      "date_of_birth": "1994-07-19",
+      "policies": [
+        {
+          "carrier": "River City Mutual",
+          "currently_insured": true,
+          "years_continuous": 4,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    }
+  },
+  "claims_band": "high",
+  "violation_severity": "high",
+  "vehicle_risk_band": "low",
+  "prior_insurance_band": "low",
+  "discrepancy_flags": [
+    "applicant claims I have a clean record, with no accidents and no tickets.; 1 at-fault accident with bodily injury false and payment $6400, and 1 red-light violation"
+  ],
+  "data_gaps": [],
+  "summary": "Applicant claims a clean record, but records show one at-fault accident (payment >$10k) and one red-light violation.",
+  "verified": true
+}

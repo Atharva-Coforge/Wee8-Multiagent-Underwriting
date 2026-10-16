@@ -1,0 +1,67 @@
+{
+  "intake": {
+    "case_id": "messy_formats",
+    "raw_text": "Name on the form: RIVERA, ALEX M. Born 03/22/91. Works as a teacher. Vehicle is a 2019 HONDA civic. Asking for liability of one hundred thousand, three hundred thousand, and fifty thousand.",
+    "full_name": "Alex M. Rivera",
+    "date_of_birth": "1991-03-22",
+    "vehicle_year": 2019,
+    "vehicle_make": "Honda",
+    "vehicle_model": "Civic",
+    "coverage": "100/300/50",
+    "occupation": "teacher",
+    "missing_fields": [],
+    "decision": "proceed",
+    "reason": "all required fields are present",
+    "model_decision": null,
+    "override": false,
+    "applicant_claims": ""
+  },
+  "lookup": {
+    "match_status": "full_match",
+    "person_id": "P-1005",
+    "driving_history": {
+      "person_id": "P-1005",
+      "full_name": "Alex M. Rivera",
+      "date_of_birth": "1991-03-22",
+      "accidents": [],
+      "violations": [],
+      "claims": []
+    },
+    "vehicles": {
+      "person_id": "P-1005",
+      "full_name": "Alex M. Rivera",
+      "date_of_birth": "1991-03-22",
+      "vehicles": [
+        {
+          "year": 2019,
+          "make": "Honda",
+          "model": "Civic",
+          "currently_insured": true
+        }
+      ]
+    },
+    "prior_insurance": {
+      "person_id": "P-1005",
+      "full_name": "Alex M. Rivera",
+      "date_of_birth": "1991-03-22",
+      "policies": [
+        {
+          "carrier": "Lakeshore Indemnity",
+          "currently_insured": true,
+          "years_continuous": 6,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    }
+  },
+  "claims_band": "low",
+  "violation_severity": "low",
+  "vehicle_risk_band": "low",
+  "prior_insurance_band": "low",
+  "discrepancy_flags": [],
+  "data_gaps": [],
+  "summary": "No at-fault accidents, no violations, and continuous prior insurance.",
+  "verified": true
+}

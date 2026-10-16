@@ -1,0 +1,2 @@
+# Build-context ignore file for week9/Dockerfile. BuildKit reads it in place of
+# a root .dockerignore, so the repo root stays untouched.

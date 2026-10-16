@@ -1,0 +1,76 @@
+{
+  "intake": {
+    "case_id": "maria_ortiz",
+    "raw_text": "My name is Maria Elena Ortiz. I was born on May 12, 1984. I am a registered nurse and I want to insure my 2021 Honda CR-V. I am looking for liability coverage of 100/300/100. I have been insured continuously and I have no accidents or tickets.",
+    "full_name": "Maria Elena Ortiz",
+    "date_of_birth": "1984-05-12",
+    "vehicle_year": 2021,
+    "vehicle_make": "Honda",
+    "vehicle_model": "CR-V",
+    "coverage": "100/300/100",
+    "occupation": "registered nurse",
+    "missing_fields": [],
+    "decision": "proceed",
+    "reason": "all required fields are present",
+    "model_decision": null,
+    "override": false,
+    "applicant_claims": "I have been insured continuously and I have no accidents or tickets."
+  },
+  "lookup": {
+    "match_status": "full_match",
+    "person_id": "P-1001",
+    "driving_history": {
+      "person_id": "P-1001",
+      "full_name": "Maria Elena Ortiz",
+      "date_of_birth": "1984-05-12",
+      "accidents": [],
+      "violations": [],
+      "claims": [
+        {
+          "date": "2019-04-02",
+          "type": "glass",
+          "at_fault": false,
+          "description": "Windshield cracked by a rock on I-71.",
+          "bodily_injury": false,
+          "amount_paid_usd": 320
+        }
+      ]
+    },
+    "vehicles": {
+      "person_id": "P-1001",
+      "full_name": "Maria Elena Ortiz",
+      "date_of_birth": "1984-05-12",
+      "vehicles": [
+        {
+          "year": 2021,
+          "make": "Honda",
+          "model": "CR-V",
+          "currently_insured": true
+        }
+      ]
+    },
+    "prior_insurance": {
+      "person_id": "P-1001",
+      "full_name": "Maria Elena Ortiz",
+      "date_of_birth": "1984-05-12",
+      "policies": [
+        {
+          "carrier": "Buckeye Mutual",
+          "currently_insured": true,
+          "years_continuous": 12,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    }
+  },
+  "claims_band": "low",
+  "violation_severity": "low",
+  "vehicle_risk_band": "low",
+  "prior_insurance_band": "low",
+  "discrepancy_flags": [],
+  "data_gaps": [],
+  "summary": "One not-at-fault glass claim; continuous insurance coverage with no at-fault accidents or violations.",
+  "verified": true
+}
