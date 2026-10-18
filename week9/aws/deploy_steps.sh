@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Simulated AWS deployment, us-east-1: IAM, ECR, VPC endpoints, logs, ECS Fargate.
+# Simulated AWS deployment, us-east-1: network, IAM, ECR, logs, ECS Fargate.
 # Documentation only. Never run: the lab does not allow cloud services.
 #
-# Order follows the lab: IAM first, then the image, network, logs, and finally
-# the Fargate task that uses the roles.
+# Order: the network comes first, because the IAM policies name the VPC and
+# the Bedrock endpoint it creates. IAM still comes before any compute: no task
+# runs until both roles exist and have been checked.
 #
 #   CONFIRM_REAL_AWS=yes bash week9/aws/deploy_steps.sh            # deploy and run once
 #   CONFIRM_REAL_AWS=yes bash week9/aws/deploy_steps.sh teardown   # delete everything
@@ -40,81 +41,31 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${REPO}:${TAG}"
 TAGS="Key=Project,Value=${PROJECT}"
 
-# The JSON files say ACCOUNT_ID. Fill in the real account into a temp copy.
+# Set by the network step, then written into the IAM policies.
+VPC_ID=""
+BEDROCK_VPCE_ID=""
+
+# The JSON files use the placeholders ACCOUNT_ID, VPC_ID, and BEDROCK_VPCE_ID.
+# Fill in the real values into a temp copy, and stop if any are still missing.
 RENDERED="$(mktemp -d)"
 trap 'rm -rf "$RENDERED"' EXIT
 render() {
-  sed "s/ACCOUNT_ID/${ACCOUNT_ID}/g" "$AWS_DIR/$1" > "$RENDERED/$(basename "$1")"
-  echo "$RENDERED/$(basename "$1")"
+  local out
+  out="$RENDERED/$(basename "$1")"
+  sed -e "s/ACCOUNT_ID/${ACCOUNT_ID}/g" \
+    -e "s/BEDROCK_VPCE_ID/${BEDROCK_VPCE_ID}/g" \
+    -e "s/VPC_ID/${VPC_ID}/g" \
+    "$AWS_DIR/$1" > "$out"
+  if grep -qE '""|ACCOUNT_ID|BEDROCK_VPCE_ID|VPC_ID' "$out"; then
+    echo "render: $1 still has an empty or unfilled placeholder" >&2
+    exit 1
+  fi
+  echo "$out"
 }
 
 deploy() {
   # ---------------------------------------------------------------------------
-  # 1. IAM: two roles, each with one customer managed policy.
-  # ---------------------------------------------------------------------------
-  # Execution role: used by ECS/Fargate to pull the image and write logs.
-  aws iam create-role --role-name "$EXEC_ROLE" \
-    --assume-role-policy-document "file://$(render iam/execution-role-trust-policy.json)" \
-    --description "ECS pulls the risk agent image and writes its logs" \
-    --tags "$TAGS"
-  aws iam create-policy --policy-name "$EXEC_POLICY" \
-    --policy-document "file://$(render iam/execution-role-policy.json)" \
-    --tags "$TAGS"
-  aws iam attach-role-policy --role-name "$EXEC_ROLE" \
-    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${EXEC_POLICY}"
-
-  # Task role: used by our code inside the container. Gemma only.
-  aws iam create-role --role-name "$TASK_ROLE" \
-    --assume-role-policy-document "file://$(render iam/task-role-trust-policy.json)" \
-    --description "Risk scoring agent: invoke Gemma 3 27B in us-east-1 only" \
-    --tags "$TAGS"
-  aws iam create-policy --policy-name "$TASK_POLICY" \
-    --policy-document "file://$(render iam/task-role-policy.json)" \
-    --tags "$TAGS"
-  aws iam attach-role-policy --role-name "$TASK_ROLE" \
-    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${TASK_POLICY}"
-
-  # Confirm the roles exist and have the right policy before anything uses them.
-  for role in "$EXEC_ROLE" "$TASK_ROLE"; do
-    aws iam get-role --role-name "$role" --query 'Role.Arn' --output text
-    aws iam list-attached-role-policies --role-name "$role" \
-      --query 'AttachedPolicies[].PolicyName' --output text
-  done
-  aws iam get-policy-version \
-    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${TASK_POLICY}" \
-    --version-id v1 --query 'PolicyVersion.Document'
-
-  # Least privilege check. Expected: allowed, implicitDeny, implicitDeny.
-  local task_role_arn="arn:aws:iam::${ACCOUNT_ID}:role/${TASK_ROLE}"
-  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
-    --action-names bedrock:InvokeModel --resource-arns "$MODEL_ARN" \
-    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
-  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
-    --action-names bedrock:InvokeModel \
-    --resource-arns "arn:aws:bedrock:${REGION}::foundation-model/google.gemma-3-12b-it" \
-    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
-  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
-    --action-names s3:GetObject --resource-arns "arn:aws:s3:::any-bucket/any-key" \
-    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
-
-  # ---------------------------------------------------------------------------
-  # 2. ECR: private repository, immutable tags, scan on push. Build and push.
-  # ---------------------------------------------------------------------------
-  aws ecr create-repository --repository-name "$REPO" \
-    --image-tag-mutability IMMUTABLE \
-    --image-scanning-configuration scanOnPush=true \
-    --tags "$TAGS"
-  aws ecr get-login-password \
-    | docker login --username AWS --password-stdin \
-      "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-  docker build --platform linux/arm64 -f "$ROOT/week9/Dockerfile" -t "$IMAGE_URI" "$ROOT"
-  docker push "$IMAGE_URI"
-  aws ecr wait image-scan-complete --repository-name "$REPO" --image-id "imageTag=${TAG}"
-  aws ecr describe-image-scan-findings --repository-name "$REPO" \
-    --image-id "imageTag=${TAG}" --query 'imageScanFindings.findingSeverityCounts'
-
-  # ---------------------------------------------------------------------------
-  # 3. Network: a VPC with two private subnets, no internet gateway, no NAT.
+  # 1. Network: a VPC with two private subnets, no internet gateway, no NAT.
   #    AWS services are reached through VPC endpoints only.
   # ---------------------------------------------------------------------------
   # Pick AZs where the Bedrock runtime endpoint is offered.
@@ -122,25 +73,25 @@ deploy() {
     --service-names "com.amazonaws.${REGION}.bedrock-runtime" \
     --query 'ServiceDetails[0].AvailabilityZones' --output text
 
-  local vpc_id subnet_a subnet_b rtb_id task_sg endpoint_sg s3_prefix_list
-  vpc_id="$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 \
+  local subnet_a subnet_b rtb_id task_sg endpoint_sg s3_prefix_list
+  VPC_ID="$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 \
     --tag-specifications "ResourceType=vpc,Tags=[{$TAGS},{Key=Name,Value=risk-agent-vpc}]" \
     --query Vpc.VpcId --output text)"
   # Private DNS for interface endpoints needs both of these.
-  aws ec2 modify-vpc-attribute --vpc-id "$vpc_id" --enable-dns-support '{"Value":true}'
-  aws ec2 modify-vpc-attribute --vpc-id "$vpc_id" --enable-dns-hostnames '{"Value":true}'
+  aws ec2 modify-vpc-attribute --vpc-id "$VPC_ID" --enable-dns-support '{"Value":true}'
+  aws ec2 modify-vpc-attribute --vpc-id "$VPC_ID" --enable-dns-hostnames '{"Value":true}'
 
-  subnet_a="$(aws ec2 create-subnet --vpc-id "$vpc_id" --cidr-block 10.0.1.0/24 \
+  subnet_a="$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.1.0/24 \
     --availability-zone "${REGION}a" \
     --tag-specifications "ResourceType=subnet,Tags=[{$TAGS},{Key=Name,Value=risk-agent-private-a}]" \
     --query Subnet.SubnetId --output text)"
-  subnet_b="$(aws ec2 create-subnet --vpc-id "$vpc_id" --cidr-block 10.0.2.0/24 \
+  subnet_b="$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.2.0/24 \
     --availability-zone "${REGION}b" \
     --tag-specifications "ResourceType=subnet,Tags=[{$TAGS},{Key=Name,Value=risk-agent-private-b}]" \
     --query Subnet.SubnetId --output text)"
 
   # Route table with only the local route: nothing can leave the VPC.
-  rtb_id="$(aws ec2 create-route-table --vpc-id "$vpc_id" \
+  rtb_id="$(aws ec2 create-route-table --vpc-id "$VPC_ID" \
     --tag-specifications "ResourceType=route-table,Tags=[{$TAGS},{Key=Name,Value=risk-agent-private}]" \
     --query RouteTable.RouteTableId --output text)"
   aws ec2 associate-route-table --route-table-id "$rtb_id" --subnet-id "$subnet_a"
@@ -148,12 +99,12 @@ deploy() {
 
   # Security groups. Both start with no inbound rules; remove the default
   # allow-all outbound rule, then add only what is needed.
-  task_sg="$(aws ec2 create-security-group --vpc-id "$vpc_id" \
+  task_sg="$(aws ec2 create-security-group --vpc-id "$VPC_ID" \
     --group-name risk-agent-task-sg \
     --description "Risk agent task: no inbound, HTTPS out to endpoints only" \
     --tag-specifications "ResourceType=security-group,Tags=[{$TAGS}]" \
     --query GroupId --output text)"
-  endpoint_sg="$(aws ec2 create-security-group --vpc-id "$vpc_id" \
+  endpoint_sg="$(aws ec2 create-security-group --vpc-id "$VPC_ID" \
     --group-name risk-agent-endpoint-sg \
     --description "VPC endpoints: HTTPS in from the risk agent task only" \
     --tag-specifications "ResourceType=security-group,Tags=[{$TAGS}]" \
@@ -177,23 +128,103 @@ deploy() {
 
   # Interface endpoints: image pull (ecr.api, ecr.dkr), logs, and Bedrock.
   for service in ecr.api ecr.dkr logs; do
-    aws ec2 create-vpc-endpoint --vpc-id "$vpc_id" --vpc-endpoint-type Interface \
+    aws ec2 create-vpc-endpoint --vpc-id "$VPC_ID" --vpc-endpoint-type Interface \
       --service-name "com.amazonaws.${REGION}.${service}" \
       --subnet-ids "$subnet_a" "$subnet_b" --security-group-ids "$endpoint_sg" \
       --private-dns-enabled \
       --tag-specifications "ResourceType=vpc-endpoint,Tags=[{$TAGS}]"
   done
-  aws ec2 create-vpc-endpoint --vpc-id "$vpc_id" --vpc-endpoint-type Interface \
+  # The endpoint policy checks the caller with aws:PrincipalArn, so it can be
+  # set now, before the task role exists.
+  BEDROCK_VPCE_ID="$(aws ec2 create-vpc-endpoint --vpc-id "$VPC_ID" --vpc-endpoint-type Interface \
     --service-name "com.amazonaws.${REGION}.bedrock-runtime" \
     --subnet-ids "$subnet_a" "$subnet_b" --security-group-ids "$endpoint_sg" \
     --private-dns-enabled \
     --policy-document "file://$(render network/bedrock-endpoint-policy.json)" \
-    --tag-specifications "ResourceType=vpc-endpoint,Tags=[{$TAGS}]"
+    --tag-specifications "ResourceType=vpc-endpoint,Tags=[{$TAGS}]" \
+    --query VpcEndpoint.VpcEndpointId --output text)"
   # Gateway endpoint for S3, where ECR stores image layers. Free.
-  aws ec2 create-vpc-endpoint --vpc-id "$vpc_id" --vpc-endpoint-type Gateway \
+  aws ec2 create-vpc-endpoint --vpc-id "$VPC_ID" --vpc-endpoint-type Gateway \
     --service-name "com.amazonaws.${REGION}.s3" --route-table-ids "$rtb_id" \
     --policy-document "file://$AWS_DIR/network/s3-gateway-endpoint-policy.json" \
     --tag-specifications "ResourceType=vpc-endpoint,Tags=[{$TAGS}]"
+
+  # ---------------------------------------------------------------------------
+  # 2. IAM: two roles, each with one customer managed policy. The policies are
+  #    tied to the VPC and the Bedrock endpoint from step 1.
+  # ---------------------------------------------------------------------------
+  # Execution role: used by ECS/Fargate to pull the image and write logs.
+  aws iam create-role --role-name "$EXEC_ROLE" \
+    --assume-role-policy-document "file://$(render iam/execution-role-trust-policy.json)" \
+    --description "ECS pulls the risk agent image and writes its logs" \
+    --tags "$TAGS"
+  aws iam create-policy --policy-name "$EXEC_POLICY" \
+    --policy-document "file://$(render iam/execution-role-policy.json)" \
+    --tags "$TAGS"
+  aws iam attach-role-policy --role-name "$EXEC_ROLE" \
+    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${EXEC_POLICY}"
+
+  # Task role: used by our code inside the container. Gemma only, and only
+  # through our Bedrock endpoint.
+  aws iam create-role --role-name "$TASK_ROLE" \
+    --assume-role-policy-document "file://$(render iam/task-role-trust-policy.json)" \
+    --description "Risk scoring agent: invoke Gemma 3 27B in us-east-1 through our endpoint only" \
+    --tags "$TAGS"
+  aws iam create-policy --policy-name "$TASK_POLICY" \
+    --policy-document "file://$(render iam/task-role-policy.json)" \
+    --tags "$TAGS"
+  aws iam attach-role-policy --role-name "$TASK_ROLE" \
+    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${TASK_POLICY}"
+
+  # Confirm the roles exist and have the right policy before anything uses them.
+  for role in "$EXEC_ROLE" "$TASK_ROLE"; do
+    aws iam get-role --role-name "$role" --query 'Role.Arn' --output text
+    aws iam list-attached-role-policies --role-name "$role" \
+      --query 'AttachedPolicies[].PolicyName' --output text
+  done
+  aws iam get-policy-version \
+    --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/${TASK_POLICY}" \
+    --version-id v1 --query 'PolicyVersion.Document'
+
+  # Least privilege check on the task role. Expected, in order:
+  # allowed, implicitDeny, implicitDeny, implicitDeny.
+  local task_role_arn="arn:aws:iam::${ACCOUNT_ID}:role/${TASK_ROLE}"
+  local through_endpoint="ContextKeyName=aws:SourceVpce,ContextKeyValues=${BEDROCK_VPCE_ID},ContextKeyType=string"
+  # Gemma 3 27B, called through our endpoint.
+  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
+    --action-names bedrock:InvokeModel --resource-arns "$MODEL_ARN" \
+    --context-entries "$through_endpoint" \
+    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
+  # Gemma 3 27B, called from anywhere else (no endpoint in the request).
+  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
+    --action-names bedrock:InvokeModel --resource-arns "$MODEL_ARN" \
+    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
+  # A different model, even through our endpoint.
+  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
+    --action-names bedrock:InvokeModel \
+    --resource-arns "arn:aws:bedrock:${REGION}::foundation-model/google.gemma-3-12b-it" \
+    --context-entries "$through_endpoint" \
+    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
+  # Any other service.
+  aws iam simulate-principal-policy --policy-source-arn "$task_role_arn" \
+    --action-names s3:GetObject --resource-arns "arn:aws:s3:::any-bucket/any-key" \
+    --query 'EvaluationResults[].[EvalActionName,EvalDecision]' --output text
+
+  # ---------------------------------------------------------------------------
+  # 3. ECR: private repository, immutable tags, scan on push. Build and push.
+  # ---------------------------------------------------------------------------
+  aws ecr create-repository --repository-name "$REPO" \
+    --image-tag-mutability IMMUTABLE \
+    --image-scanning-configuration scanOnPush=true \
+    --tags "$TAGS"
+  aws ecr get-login-password \
+    | docker login --username AWS --password-stdin \
+      "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+  docker build --platform linux/arm64 -f "$ROOT/week9/Dockerfile" -t "$IMAGE_URI" "$ROOT"
+  docker push "$IMAGE_URI"
+  aws ecr wait image-scan-complete --repository-name "$REPO" --image-id "imageTag=${TAG}"
+  aws ecr describe-image-scan-findings --repository-name "$REPO" \
+    --image-id "imageTag=${TAG}" --query 'imageScanFindings.findingSeverityCounts'
 
   # ---------------------------------------------------------------------------
   # 4. CloudWatch Logs: created up front, kept for 30 days.

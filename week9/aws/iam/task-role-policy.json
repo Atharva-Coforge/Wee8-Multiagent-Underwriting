@@ -2,10 +2,15 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "InvokeOnlyGemma327bInUsEast1",
+      "Sid": "InvokeOnlyGemma327bThroughOurEndpoint",
       "Effect": "Allow",
       "Action": "bedrock:InvokeModel",
-      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it"
+      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceVpce": "BEDROCK_VPCE_ID"
+        }
+      }
     }
   ]
 }

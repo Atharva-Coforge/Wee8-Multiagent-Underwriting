@@ -8,14 +8,19 @@
       "Resource": "*"
     },
     {
-      "Sid": "PullOnlyTheRiskAgentImage",
+      "Sid": "PullOnlyTheRiskAgentImageFromOurVpc",
       "Effect": "Allow",
       "Action": [
         "ecr:BatchCheckLayerAvailability",
         "ecr:GetDownloadUrlForLayer",
         "ecr:BatchGetImage"
       ],
-      "Resource": "arn:aws:ecr:us-east-1:ACCOUNT_ID:repository/risk-scoring-agent"
+      "Resource": "arn:aws:ecr:us-east-1:ACCOUNT_ID:repository/risk-scoring-agent",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceVpc": "VPC_ID"
+        }
+      }
     },
     {
       "Sid": "WriteOnlyTheRiskAgentLogGroup",

@@ -4,11 +4,14 @@
     {
       "Sid": "OnlyTheRiskAgentRoleOnlyGemma",
       "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT_ID:role/risk-agent-task-role"
-      },
+      "Principal": "*",
       "Action": "bedrock:InvokeModel",
-      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it"
+      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::ACCOUNT_ID:role/risk-agent-task-role"
+        }
+      }
     }
   ]
 }

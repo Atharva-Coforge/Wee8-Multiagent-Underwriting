@@ -14,7 +14,12 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); i=d['info']; print\\('boto3', i['version'], [r for r in i['requires_dist'] if 'botocore' in r], i['requires_python']\\)\")",
       "Bash(curl -s -m 10 \"https://hub.docker.com/v2/repositories/library/python/tags?name=3.12.14-slim&page_size=20\")",
       "Bash(python3 /private/tmp/claude-502/-Users-Atharva-C-Downloads-Development-Wee8-Multiagent-Underwriting/7206367f-3053-4277-91bd-e64452a13c2e/scratchpad/costs.py)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(ollama --version)",
+      "Bash(ollama list *)",
+      "Bash(ollama show *)",
+      "Bash(sysctl -n machdep.cpu.brand_string hw.memsize)",
+      "Bash(awk '{print $6, $7, $8, $9}')"
     ]
   }
 }

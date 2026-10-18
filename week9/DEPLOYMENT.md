@@ -146,14 +146,16 @@ ECS uses two separate roles, and each gets its own customer managed policy:
 - **Execution role (`risk-agent-execution-role`):** used by **ECS itself** to start the container.
 - **Task role (`risk-agent-task-role`):** what **our code** runs as. This is the dedicated role the lab asks for.
 
-Both are created and checked **before** anything uses them. This is step 1 of [`aws/deploy_steps.sh`](aws/deploy_steps.sh).
+Both are created and checked **before** any compute runs: no task runs until both roles exist and pass the checks below.
+
+**The network is built first** (step 1 of [`aws/deploy_steps.sh`](aws/deploy_steps.sh)), and the roles come in step 2. The reason is that the policies name the VPC and the Bedrock endpoint, and those IDs exist only after the network is created. This way each policy is strict from its first version and never has to be edited. The lab's order still holds: the network is not compute.
 
 **Execution role:** [`aws/iam/execution-role-policy.json`](aws/iam/execution-role-policy.json)
 
 | Permission | Limited to | Why it is needed |
 |---|---|---|
 | `ecr:GetAuthorizationToken` | `*` | Log in to ECR. AWS does not allow this action to be scoped to a repository |
-| `ecr:BatchCheckLayerAvailability`, `ecr:GetDownloadUrlForLayer`, `ecr:BatchGetImage` | `repository/risk-scoring-agent` | Pull our image and no other image |
+| `ecr:BatchCheckLayerAvailability`, `ecr:GetDownloadUrlForLayer`, `ecr:BatchGetImage` | `repository/risk-scoring-agent`, and only from our VPC (`aws:SourceVpc`) | Pull our image and no other image, and only from inside our network |
 | `logs:CreateLogStream`, `logs:PutLogEvents` | `log-group:/ecs/risk-scoring-agent:*` | Write our logs. It cannot create log groups; ours is created in advance |
 
 AWS's managed `AmazonECSTaskExecutionRolePolicy` grants these permissions on every repository and every log group. We wrote our own policy instead.
@@ -162,26 +164,30 @@ AWS's managed `AmazonECSTaskExecutionRolePolicy` grants these permissions on eve
 
 | Permission | Limited to | Why it is needed |
 |---|---|---|
-| `bedrock:InvokeModel` | `arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it` | The Converse API is authorized by this action. One model, one Region |
+| `bedrock:InvokeModel` | `arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it`, and only through our Bedrock endpoint (`aws:SourceVpce`) | The Converse API is authorized by this action. One model, one Region, one network path |
 
 That is the whole policy. The task role has:
 
 - no access to any other model, not even Gemma 3 12B
+- no way to call the model from outside our VPC. If its temporary credentials were stolen, they would not work anywhere else
 - no streaming, because the agent does not stream
 - no S3, Secrets Manager, or any other service
+
+The JSON files use the placeholders `ACCOUNT_ID`, `VPC_ID`, and `BEDROCK_VPCE_ID`. The deploy script fills in the real values. It stops if any placeholder is left empty.
 
 **Trust policies** (who may assume each role):
 
 - **Task role:** only `ecs-tasks.amazonaws.com`, and only for tasks in our account (`aws:SourceAccount` and `aws:SourceArn`). This is AWS's recommended guard against the "confused deputy" problem, where another account tricks a service into using our role.
 - **Execution role:** AWS's documented trust policy, which has no conditions.
 
-**Proving least privilege.** After creating the roles, the script checks three cases with `aws iam simulate-principal-policy`:
+**Proving least privilege.** After creating the roles, the script checks four cases with `aws iam simulate-principal-policy`. "Through our endpoint" means the simulation is told the request came through the Bedrock endpoint (`--context-entries aws:SourceVpce=...`).
 
-| Action | Resource | Expected |
-|---|---|---|
-| `bedrock:InvokeModel` | Gemma 3 27B | `allowed` |
-| `bedrock:InvokeModel` | Gemma 3 12B | `implicitDeny` |
-| `s3:GetObject` | any bucket | `implicitDeny` |
+| Action | Resource | Called from | Expected |
+|---|---|---|---|
+| `bedrock:InvokeModel` | Gemma 3 27B | through our endpoint | `allowed` |
+| `bedrock:InvokeModel` | Gemma 3 27B | anywhere else | `implicitDeny` |
+| `bedrock:InvokeModel` | Gemma 3 12B | through our endpoint | `implicitDeny` |
+| `s3:GetObject` | any bucket | anywhere | `implicitDeny` |
 
 ### Networking
 
@@ -192,7 +198,7 @@ That is the whole policy. The task role has:
 | Task security group | **No inbound rules.** The default allow-all outbound rule is removed. Outbound allows only HTTPS 443 to the endpoint security group and to the S3 prefix list | The container listens on no port. It may reach only the AWS services it needs |
 | Endpoint security group | Inbound HTTPS 443 **only from the task security group**. No outbound rules | Nothing else in the VPC can use the endpoints |
 | Interface endpoints | `ecr.api`, `ecr.dkr` (pull the image), `logs` (CloudWatch), `bedrock-runtime` (Gemma), all with private DNS | AWS services are reached over private IPs inside the VPC. Traffic never crosses the public internet |
-| Bedrock endpoint policy | Only `risk-agent-task-role`, only `bedrock:InvokeModel`, only Gemma 3 27B | A second lock: even a misconfigured role cannot use another model through this endpoint |
+| Bedrock endpoint policy | Only `risk-agent-task-role` (checked with `aws:PrincipalArn`), only `bedrock:InvokeModel`, only Gemma 3 27B | A second lock: even a misconfigured role cannot use another model through this endpoint. Checking the caller with a condition, instead of naming the role as the principal, lets the policy be set before the role exists |
 | S3 gateway endpoint (free) | Policy allows only `s3:GetObject` on `prod-us-east-1-starport-layer-bucket`, where ECR stores image layers | The task cannot upload data to any other bucket, which closes a common data-leak path |
 
 Two things need no extra configuration:
@@ -212,9 +218,9 @@ Two things need no extra configuration:
 
 [`aws/deploy_steps.sh`](aws/deploy_steps.sh) holds every command in order. It refuses to run unless `CONFIRM_REAL_AWS=yes` is set.
 
-1. **IAM.** Create both roles and policies, then confirm them with `get-role`, `list-attached-role-policies`, and `simulate-principal-policy`.
-2. **ECR.** Create a private repository with immutable tags and scanning on push. Build for `linux/arm64`, push `v1`, and read the scan findings.
-3. **Network.** Check which AZs offer `bedrock-runtime`. Then create the VPC, subnets, route table, both security groups and their rules, and the five endpoints.
+1. **Network.** Check which AZs offer `bedrock-runtime`. Then create the VPC, subnets, route table, both security groups and their rules, and the five endpoints. Keep the VPC ID and the Bedrock endpoint ID for step 2.
+2. **IAM.** Create both roles and policies, with the VPC ID and endpoint ID filled in. Then confirm them with `get-role`, `list-attached-role-policies`, and the four `simulate-principal-policy` checks.
+3. **ECR.** Create a private repository with immutable tags and scanning on push. Build for `linux/arm64`, push `v1`, and read the scan findings.
 4. **Logs.** Create `/ecs/risk-scoring-agent` with 30-day retention.
 5. **ECS.** Create the cluster and register [`aws/ecs/task-definition.json`](aws/ecs/task-definition.json):
    - Fargate, ARM64, 0.25 vCPU, 512 MB
@@ -231,11 +237,7 @@ Two things need no extra configuration:
    (The values here are placeholders; the real ones would come from Gemma.)
 7. **Teardown.** `deploy_steps.sh teardown` deletes everything in reverse order, finding resources by their `Project` tag.
 
-**Optional hardening, not included.** Three further restrictions are possible:
-
-- Restrict the task role to calls that come through our Bedrock endpoint (`aws:SourceVpce`), so stolen credentials would be useless outside the VPC. It is left out because the endpoint ID exists only after the network is built, which conflicts with creating IAM first.
-- Add the same kind of condition to the execution role's ECR permissions.
-- Pin the base image by digest (`@sha256:...`) instead of by tag.
+**Optional hardening, not included.** Pin the base image by digest (`@sha256:...`) instead of by tag, so a rebuild can never pick up a changed base image.
 
 ## Part 2: On-prem deployment (deployed and run)
 
