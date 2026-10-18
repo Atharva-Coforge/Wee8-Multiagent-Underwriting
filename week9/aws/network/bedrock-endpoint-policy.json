@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OnlyTheRiskAgentRoleOnlyGemma",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-it",
+      "Condition": {
+        "ArnEquals": {
+          "aws:PrincipalArn": "arn:aws:iam::ACCOUNT_ID:role/risk-agent-task-role"
+        }
+      }
+    }
+  ]
+}

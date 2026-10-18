@@ -1,0 +1,82 @@
+{
+  "intake": {
+    "case_id": "timeout_case",
+    "raw_text": "My name is Denise Carol Whitfield. I was born on August 3, 1977. I am an office manager and I want to insure my 2018 Toyota Camry. I want liability coverage of 100/300/100.",
+    "full_name": "Denise Carol Whitfield",
+    "date_of_birth": "1977-08-03",
+    "vehicle_year": 2018,
+    "vehicle_make": "Toyota",
+    "vehicle_model": "Camry",
+    "coverage": "100/300/100",
+    "occupation": "office manager",
+    "missing_fields": [],
+    "decision": "proceed",
+    "reason": "all required fields are present",
+    "model_decision": null,
+    "override": false,
+    "applicant_claims": ""
+  },
+  "lookup": {
+    "match_status": "full_match",
+    "person_id": "P-1006",
+    "driving_history": {
+      "person_id": "P-1006",
+      "full_name": "Denise Carol Whitfield",
+      "date_of_birth": "1977-08-03",
+      "accidents": [],
+      "violations": [
+        {
+          "date": "2024-03-11",
+          "type": "speeding",
+          "description": "44 in a 35 zone."
+        }
+      ],
+      "claims": [
+        {
+          "date": "2023-05-18",
+          "type": "comprehensive",
+          "at_fault": false,
+          "description": "Hail damage to the hood and roof while parked.",
+          "bodily_injury": false,
+          "amount_paid_usd": 2150
+        }
+      ]
+    },
+    "vehicles": {
+      "person_id": "P-1006",
+      "full_name": "Denise Carol Whitfield",
+      "date_of_birth": "1977-08-03",
+      "vehicles": [
+        {
+          "year": 2018,
+          "make": "Toyota",
+          "model": "Camry",
+          "currently_insured": true
+        }
+      ]
+    },
+    "prior_insurance": {
+      "person_id": "P-1006",
+      "full_name": "Denise Carol Whitfield",
+      "date_of_birth": "1977-08-03",
+      "policies": [
+        {
+          "carrier": "Lakeshore Indemnity",
+          "currently_insured": true,
+          "years_continuous": 7,
+          "lapse_days": 0,
+          "cancelled": false,
+          "non_renewed": false
+        }
+      ]
+    }
+  },
+  "claims_band": "low",
+  "violation_severity": "moderate",
+  "vehicle_risk_band": "low",
+  "prior_insurance_band": "low",
+  "discrepancy_flags": [],
+  "data_gaps": [],
+  "summary": "No at-fault accidents. One minor speeding violation and one not-at-fault comprehensive claim.",
+  "verified": true
+}
